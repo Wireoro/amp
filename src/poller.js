@@ -6,20 +6,18 @@ const COLORS = ["#d97064","#4a8fd4","#5a9a5a","#8b71c7","#d4943e","#c04040","#4a
 async function poll() {
   console.log("[Poll] Starting sweep…");
 
-  // Get all distinct users who have watchlist entries
   const { data: allAccounts } = await supabase
     .from("watchlist").select("*").order("created_at");
 
   if (!allAccounts?.length) { console.log("[Poll] No accounts."); return; }
 
-  // Group accounts by user_id
+  // Group accounts by user_id — each user processed independently
   const byUser = {};
   allAccounts.forEach(a => {
     if (!byUser[a.user_id]) byUser[a.user_id] = [];
     byUser[a.user_id].push(a);
   });
 
-  // Process each user's watchlist independently
   for (const userId of Object.keys(byUser)) {
     const accounts = byUser[userId];
 
@@ -36,12 +34,13 @@ async function poll() {
     const handles = accounts.map(a => a.handle);
     const allTweets = await fetchTweetsForAccounts(handles);
 
-    // Build lookup map
+    // Build handle → account lookup
     const accountMap = {};
     accounts.forEach(a => { accountMap[a.handle.toLowerCase()] = a; });
 
-    // Get already-seen tweet IDs
-    const { data: seenRows } = await supabase.from("seen_tweets").select("tweet_id");
+    // Get seen tweet IDs for THIS user only
+    const { data: seenRows } = await supabase.from("seen_tweets")
+      .select("tweet_id").eq("user_id", userId);
     const seenIds = new Set((seenRows || []).map(r => r.tweet_id));
 
     const newTweets = allTweets.filter(t => !seenIds.has(String(t.id)));
@@ -53,11 +52,12 @@ async function poll() {
       const account = accountMap[handle];
       if (!account) continue;
 
-      await supabase.from("seen_tweets").insert({ tweet_id: tweetId });
+      // Mark seen for this user specifically
+      await supabase.from("seen_tweets").insert({ user_id: userId, tweet_id: tweetId });
 
       if (!account.last_tweet_id) {
         await supabase.from("watchlist").update({ last_tweet_id: tweetId }).eq("id", account.id);
-        console.log(`[Poll] @${handle} — first seen, bookmark set`);
+        console.log(`[Poll] @${handle} — first seen for user ${userId.slice(0,8)}…`);
         continue;
       }
 
@@ -74,8 +74,9 @@ async function poll() {
           reply_text:     replyText,
           status:         "pending",
         });
-        await supabase.from("watchlist").update({ last_tweet_id: tweetId }).eq("id", account.id);
-        console.log(`[Claude] Draft ready for @${handle} (user ${userId.slice(0,8)}…)`);
+        await supabase.from("watchlist")
+          .update({ last_tweet_id: tweetId }).eq("id", account.id);
+        console.log(`[Claude] Draft ready for @${handle} → user ${userId.slice(0,8)}…`);
       } catch (err) {
         console.error(`[Claude] Failed:`, err.message);
       }
