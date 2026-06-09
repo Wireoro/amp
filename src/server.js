@@ -12,9 +12,10 @@ const { poll, COLORS } = require("./poller");
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(requireAuth); // only blocks /api/* routes, never HTML
 
 // ─────────────────────────────────────────────────────────────
-//  Polling schedule
+//  Polling
 // ─────────────────────────────────────────────────────────────
 const INTERVAL = parseInt(process.env.POLL_INTERVAL_MINUTES || "5", 10);
 cron.schedule(`*/${INTERVAL} * * * *`, poll);
@@ -24,46 +25,34 @@ function ok(res, data)             { res.json({ success: true, ...data }); }
 function err(res, msg, status=500) { res.status(status).json({ error: msg }); }
 
 // ─────────────────────────────────────────────────────────────
-//  FULLY PUBLIC — served BEFORE auth middleware
+//  HTML pages — all public, auth handled client-side
 // ─────────────────────────────────────────────────────────────
-
-// Health check for UptimeRobot
 app.get("/health", (req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
+app.get("/login",  (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
+app.use(express.static(path.join(__dirname, "../public")));
 
-// Login page — must be public, no token yet
-app.get("/login",    (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
-app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
-
-// Auth API routes — no token needed
+// ─────────────────────────────────────────────────────────────
+//  AUTH API — public
+// ─────────────────────────────────────────────────────────────
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, name } = req.body;
-  if (!email || !password || !name) return err(res, "email, password and name are required", 400);
+  if (!email || !password || !name) return err(res, "All fields required", 400);
   if (password.length < 6) return err(res, "Password must be at least 6 characters", 400);
-
   const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+    email, password, email_confirm: true,
     user_metadata: { full_name: name },
   });
   if (error) return err(res, error.message, 400);
-
   const { data: session, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
   if (signInErr) return err(res, signInErr.message, 400);
-
-  ok(res, {
-    access_token: session.session.access_token,
-    user: { email: data.user.email, name },
-  });
+  ok(res, { access_token: session.session.access_token, user: { email, name } });
 });
 
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return err(res, "email and password required", 400);
-
+  if (!email || !password) return err(res, "Email and password required", 400);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return err(res, "Invalid email or password", 401);
-
   ok(res, {
     access_token: data.session.access_token,
     user: { email: data.user.email, name: data.user.user_metadata?.full_name },
@@ -75,14 +64,6 @@ app.post("/api/auth/logout", async (req, res) => {
   if (token) { try { await supabase.auth.admin.signOut(token); } catch(_) {} }
   ok(res, {});
 });
-
-// ─────────────────────────────────────────────────────────────
-//  AUTH WALL — everything below requires a valid session
-// ─────────────────────────────────────────────────────────────
-app.use(requireAuth);
-
-// Protected static files (dashboard)
-app.use(express.static(path.join(__dirname, "../public")));
 
 // ─────────────────────────────────────────────────────────────
 //  REPLIES
@@ -100,10 +81,10 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
   if (reply.status !== "pending") return err(res, "Already actioned", 400);
   const replyText = req.body.replyText?.trim() || reply.reply_text;
   try { await postReply(replyText, reply.tweet_id); } catch(e) { return err(res, "Failed to post to X: " + e.message); }
-  const { data: updated, error: updateErr } = await supabase.from("replies")
+  const { data: updated, error: upErr } = await supabase.from("replies")
     .update({ status:"approved", reply_text:replyText, actioned_at:new Date().toISOString() })
     .eq("id", id).select().single();
-  if (updateErr) return err(res, updateErr.message);
+  if (upErr) return err(res, upErr.message);
   ok(res, { reply: updated });
 });
 
@@ -123,9 +104,9 @@ app.patch("/api/replies/:id/regenerate", async (req, res) => {
   const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
   try {
     const newText = await generateReply(reply.tweet_text, reply.account_handle, settings);
-    const { data: updated, error: updateErr } = await supabase.from("replies")
+    const { data: updated, error: upErr } = await supabase.from("replies")
       .update({ reply_text: newText }).eq("id", id).select().single();
-    if (updateErr) return err(res, updateErr.message);
+    if (upErr) return err(res, upErr.message);
     ok(res, { reply: updated });
   } catch(e) { err(res, e.message); }
 });
@@ -179,9 +160,6 @@ app.put("/api/settings", async (req, res) => {
   ok(res, { settings: data });
 });
 
-// ─────────────────────────────────────────────────────────────
-//  MANUAL POLL
-// ─────────────────────────────────────────────────────────────
 app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered" }); });
 
 // ─────────────────────────────────────────────────────────────
