@@ -279,12 +279,13 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 
   <div class="side-bottom">
     <div class="side-user">
-      <div class="side-avatar">YO</div>
-      <div>
-        <div class="side-uname">Your Name</div>
-        <div class="side-uhandle">@yourhandle</div>
+      <div class="side-avatar" id="sideInitials">?</div>
+      <div style="flex:1">
+        <div class="side-uname" id="sideName">Loading...</div>
+        <div class="side-uhandle" id="sideEmail"></div>
       </div>
     </div>
+    <button onclick="logout()" style="margin-top:12px;width:100%;padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-faint);border:1px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;transition:all 0.15s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--ink-faint)';this.style.borderColor='var(--border)'">Sign Out</button>
   </div>
 </aside>
 
@@ -461,7 +462,11 @@ var accounts = [], replies = [], currentFilter = "all", searchQuery = "";
 
 // ─── API ──────────────────────────────────────────────────────
 async function api(path, opts) {
-  var res = await fetch("/api" + path, Object.assign({ headers: {"Content-Type":"application/json"} }, opts));
+  var token = localStorage.getItem("amp_token");
+  var headers = {"Content-Type":"application/json"};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  var res = await fetch("/api" + path, Object.assign({ headers: headers }, opts));
+  if (res.status === 401) { localStorage.removeItem("amp_token"); window.location.href = "/login"; return; }
   var json = await res.json();
   if (!res.ok) throw new Error(json.error || "Request failed");
   return json;

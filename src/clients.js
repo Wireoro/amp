@@ -13,12 +13,11 @@ const xapi = axios.create({
 
 // ── Get today's date string for the since: filter ─────────────
 function sinceYesterday() {
-  const d = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h ago
+  const d = new Date(Date.now() - 24 * 60 * 60 * 1000);
   return d.toISOString().split("T")[0]; // "YYYY-MM-DD"
 }
 
 // ── Fetch tweets from the last 24h for a batch of handles ─────
-// Splits into chunks of 30 to stay within query length limits
 async function fetchTweetsForAccounts(handles) {
   const CHUNK_SIZE = 30;
   const allTweets = [];
@@ -56,9 +55,13 @@ async function fetchProfile(handle) {
   }
 }
 
-// ── Post a reply to X ─────────────────────────────────────────
+// ── Post a reply to X using your auth_token ───────────────────
 async function postReply(replyText, tweetId) {
+  const authToken = process.env.X_AUTH_TOKEN;
+  if (!authToken) throw new Error("X_AUTH_TOKEN is not set in environment variables");
+
   const res = await xapi.post("/tweet/create", {
+    auth_token: authToken,
     text: replyText,
     reply: { in_reply_to_tweet_id: tweetId },
   });
