@@ -11,25 +11,35 @@ const xapi = axios.create({
   timeout: 15000,
 });
 
-// ── Fetch recent tweets for a handle ─────────────────────────
-// Uses advanced_search with from:handle — the correct GetXAPI endpoint
-async function fetchRecentTweets(handle) {
-  try {
-    const res = await xapi.get("/tweet/advanced_search", {
-      params: {
-        q: `from:${handle} -is:reply -is:retweet`,
-        product: "Latest",
-      },
-    });
-    // GetXAPI returns { tweets: [...] }
-    return res.data?.tweets || [];
-  } catch (err) {
-    console.error(`[GetXAPI] tweets @${handle}:`, err.response?.data || err.message);
-    return [];
+// ── Fetch recent tweets for a BATCH of handles in one API call ──
+// Splits into chunks of 30 to stay within query length limits
+async function fetchTweetsForAccounts(handles) {
+  const CHUNK_SIZE = 30;
+  const allTweets = [];
+
+  for (let i = 0; i < handles.length; i += CHUNK_SIZE) {
+    const chunk = handles.slice(i, i + CHUNK_SIZE);
+    const query = chunk.map(h => `from:${h}`).join(" OR ");
+
+    try {
+      const res = await xapi.get("/tweet/advanced_search", {
+        params: {
+          q: `(${query}) -is:reply -is:retweet`,
+          product: "Latest",
+        },
+      });
+      const tweets = res.data?.tweets || [];
+      console.log(`[GetXAPI] Batch ${Math.floor(i/CHUNK_SIZE)+1}: ${tweets.length} tweets for ${chunk.length} accounts`);
+      allTweets.push(...tweets);
+    } catch (err) {
+      console.error(`[GetXAPI] Batch fetch failed:`, err.response?.data || err.message);
+    }
   }
+
+  return allTweets;
 }
 
-// ── Fetch profile name for a handle ──────────────────────────
+// ── Fetch profile name for a single handle ────────────────────
 async function fetchProfile(handle) {
   try {
     const res = await xapi.get("/user/info", { params: { userName: handle } });
@@ -78,4 +88,4 @@ Rules:
   return msg.content[0].text.trim();
 }
 
-module.exports = { fetchRecentTweets, fetchProfile, postReply, generateReply };
+module.exports = { fetchTweetsForAccounts, fetchProfile, postReply, generateReply };

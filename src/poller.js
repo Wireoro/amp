@@ -1,11 +1,7 @@
 const supabase = require("./supabase");
-const { fetchRecentTweets, generateReply } = require("./clients");
+const { fetchTweetsForAccounts, generateReply } = require("./clients");
 
 const COLORS = ["#d97064","#4a8fd4","#5a9a5a","#8b71c7","#d4943e","#c04040","#4aa88a","#d4703e"];
-
-// Only process tweets posted after this server boot time
-const SERVER_START = new Date();
-console.log(`[Poll] Server started at ${SERVER_START.toISOString()} — only tweets after this will be processed.`);
 
 async function poll() {
   console.log("[Poll] Starting sweep…");
@@ -27,52 +23,64 @@ async function poll() {
     include_question: true,
   };
 
-  for (const account of accounts) {
-    const tweets = await fetchRecentTweets(account.handle);
-    console.log(`[Poll] @${account.handle} → ${tweets.length} tweets fetched`);
+  // ── Build a lookup map: handle → account row ─────────────────
+  const accountMap = {};
+  accounts.forEach(a => { accountMap[a.handle.toLowerCase()] = a; });
 
-    for (const tweet of tweets) {
-      const tweetId = String(tweet.id);
+  // ── ONE batch fetch for all accounts ─────────────────────────
+  const handles = accounts.map(a => a.handle);
+  const allTweets = await fetchTweetsForAccounts(handles);
 
-      // ── Only process tweets posted AFTER server boot ──────────
-      // GetXAPI returns createdAt as "Sun Jan 25 13:05:46 +0000 2026"
-      const tweetDate = new Date(tweet.createdAt);
-      if (isNaN(tweetDate) || tweetDate < SERVER_START) {
-        continue; // skip old tweets
-      }
+  console.log(`[Poll] ${allTweets.length} total tweets across ${accounts.length} accounts`);
 
-      // ── Skip if already seen ──────────────────────────────────
-      const { data: existing } = await supabase
-        .from("seen_tweets")
-        .select("tweet_id")
-        .eq("tweet_id", tweetId)
-        .maybeSingle();
+  // ── Build set of already-seen tweet IDs ──────────────────────
+  const { data: seenRows } = await supabase.from("seen_tweets").select("tweet_id");
+  const seenIds = new Set((seenRows || []).map(r => r.tweet_id));
 
-      if (existing) continue;
+  // ── Process only new tweets ───────────────────────────────────
+  const newTweets = allTweets.filter(t => !seenIds.has(String(t.id)));
+  console.log(`[Poll] ${newTweets.length} new tweet(s) to process`);
 
-      // Mark seen immediately to avoid duplicates
-      await supabase.from("seen_tweets").insert({ tweet_id: tweetId });
+  for (const tweet of newTweets) {
+    const tweetId = String(tweet.id);
+    // GetXAPI returns author info in tweet.author.userName
+    const handle = tweet.author?.userName?.toLowerCase();
+    const account = accountMap[handle];
 
-      console.log(`[Poll] New tweet from @${account.handle} at ${tweetDate.toISOString()}: "${tweet.text?.slice(0, 60)}…"`);
+    if (!account) continue; // tweet from someone not in watchlist (shouldn't happen)
 
-      try {
-        const replyText = await generateReply(tweet.text, account.handle, cfg);
+    // Mark seen immediately
+    await supabase.from("seen_tweets").insert({ tweet_id: tweetId });
 
-        await supabase.from("replies").insert({
-          tweet_id:       tweetId,
-          account_handle: account.handle,
-          account_name:   account.name,
-          initials:       account.initials,
-          color:          account.color,
-          tweet_text:     tweet.text,
-          reply_text:     replyText,
-          status:         "pending",
-        });
+    // ── First-time accounts: just set bookmark, don't reply ──────
+    if (!account.last_tweet_id) {
+      await supabase.from("watchlist").update({ last_tweet_id: tweetId }).eq("id", account.id);
+      account.last_tweet_id = tweetId; // update local copy
+      console.log(`[Poll] @${handle} — first seen, bookmark set`);
+      continue;
+    }
 
-        console.log(`[Claude] Draft ready for @${account.handle}`);
-      } catch (err) {
-        console.error(`[Claude] Failed:`, err.message);
-      }
+    console.log(`[Poll] New tweet from @${handle}: "${tweet.text?.slice(0, 60)}…"`);
+
+    try {
+      const replyText = await generateReply(tweet.text, handle, cfg);
+
+      await supabase.from("replies").insert({
+        tweet_id:       tweetId,
+        account_handle: account.handle,
+        account_name:   account.name,
+        initials:       account.initials,
+        color:          account.color,
+        tweet_text:     tweet.text,
+        reply_text:     replyText,
+        status:         "pending",
+      });
+
+      // Update bookmark
+      await supabase.from("watchlist").update({ last_tweet_id: tweetId }).eq("id", account.id);
+      console.log(`[Claude] Draft ready for @${handle}`);
+    } catch (err) {
+      console.error(`[Claude] Failed for @${handle}:`, err.message);
     }
   }
 
