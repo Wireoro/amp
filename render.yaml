@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: twitter-amp
+    runtime: node
+    plan: starter          # $7/mo — always-on, required for the polling loop
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false        # set manually in Render dashboard
+      - key: GETX_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        value: https://jbdxnyauuyfazxhitokf.supabase.co
+      - key: SUPABASE_SERVICE_KEY
+        sync: false        # set manually in Render dashboard
+      - key: POLL_INTERVAL_MINUTES
+        value: "5"
