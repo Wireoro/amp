@@ -31,8 +31,8 @@ function err(res, msg, status=500) { res.status(status).json({ error: msg }); }
 app.get("/health", (req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
 
 // Login page — must be public, no token yet
-app.get("/login",    (req, res) => res.sendFile(path.join(__dirname, "../public/login.html")));
-app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "../public/login.html")));
+app.get("/login",    (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
 
 // Auth API routes — no token needed
 app.post("/api/auth/register", async (req, res) => {

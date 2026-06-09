@@ -466,7 +466,7 @@ async function api(path, opts) {
   var headers = {"Content-Type":"application/json"};
   if (token) headers["Authorization"] = "Bearer " + token;
   var res = await fetch("/api" + path, Object.assign({ headers: headers }, opts));
-  if (res.status === 401) { localStorage.removeItem("amp_token"); window.location.href = "/login"; return; }
+  if (res.status === 401) { localStorage.removeItem("amp_token"); window.location.replace("/login"); return; }
   var json = await res.json();
   if (!res.ok) throw new Error(json.error || "Request failed");
   return json;
