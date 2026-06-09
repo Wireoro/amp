@@ -6,23 +6,23 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── GetXAPI client ───────────────────────────────────────────
 const xapi = axios.create({
-  baseURL: "https://api.getxapi.com/v2",
+  baseURL: "https://api.getxapi.com/twitter",
   headers: { Authorization: `Bearer ${process.env.GETX_API_KEY}` },
   timeout: 15000,
 });
 
 // ── Fetch recent tweets for a handle ─────────────────────────
+// Uses advanced_search with from:handle — the correct GetXAPI endpoint
 async function fetchRecentTweets(handle) {
   try {
-    const res = await xapi.get("/user/tweets", {
+    const res = await xapi.get("/tweet/advanced_search", {
       params: {
-        username: handle,
-        limit: 5,
-        exclude_replies: true,
-        exclude_retweets: true,
+        q: `from:${handle} -is:reply -is:retweet`,
+        product: "Latest",
       },
     });
-    return res.data?.data || [];
+    // GetXAPI returns { tweets: [...] }
+    return res.data?.tweets || [];
   } catch (err) {
     console.error(`[GetXAPI] tweets @${handle}:`, err.response?.data || err.message);
     return [];
@@ -32,8 +32,8 @@ async function fetchRecentTweets(handle) {
 // ── Fetch profile name for a handle ──────────────────────────
 async function fetchProfile(handle) {
   try {
-    const res = await xapi.get("/user/info", { params: { username: handle } });
-    return res.data?.data?.name || handle;
+    const res = await xapi.get("/user/info", { params: { userName: handle } });
+    return res.data?.name || handle;
   } catch (_) {
     return handle;
   }
@@ -41,7 +41,7 @@ async function fetchProfile(handle) {
 
 // ── Post a reply to X ─────────────────────────────────────────
 async function postReply(replyText, tweetId) {
-  const res = await xapi.post("/tweet", {
+  const res = await xapi.post("/tweet/create", {
     text: replyText,
     reply: { in_reply_to_tweet_id: tweetId },
   });

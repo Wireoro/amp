@@ -6,18 +6,17 @@ const COLORS = ["#d97064","#4a8fd4","#5a9a5a","#8b71c7","#d4943e","#c04040","#4a
 async function poll() {
   console.log("[Poll] Starting sweep…");
 
-  // Load watchlist and settings from Supabase
-  const [{ data: accounts }, { data: settingsRows }] = await Promise.all([
+  const [{ data: accounts }, { data: settings }] = await Promise.all([
     supabase.from("watchlist").select("*").order("created_at"),
     supabase.from("settings").select("*").eq("id", 1).single(),
   ]);
 
   if (!accounts?.length) {
-    console.log("[Poll] Watchlist is empty — nothing to check.");
+    console.log("[Poll] Watchlist is empty.");
     return;
   }
 
-  const settings = settingsRows || {
+  const cfg = settings || {
     brand_voice: "Professional but conversational. Keep replies under 280 characters.",
     tone: "Conversational",
     max_length: 280,
@@ -26,27 +25,31 @@ async function poll() {
 
   for (const account of accounts) {
     const tweets = await fetchRecentTweets(account.handle);
+    console.log(`[Poll] @${account.handle} → ${tweets.length} tweets found`);
 
     for (const tweet of tweets) {
-      // Check if we've already seen this tweet
+      // GetXAPI advanced_search returns tweet.id as string
+      const tweetId = String(tweet.id);
+
+      // Skip if already seen
       const { data: existing } = await supabase
         .from("seen_tweets")
         .select("tweet_id")
-        .eq("tweet_id", tweet.id)
+        .eq("tweet_id", tweetId)
         .maybeSingle();
 
       if (existing) continue;
 
-      // Mark as seen immediately to avoid race conditions
-      await supabase.from("seen_tweets").insert({ tweet_id: tweet.id });
+      // Mark seen immediately
+      await supabase.from("seen_tweets").insert({ tweet_id: tweetId });
 
-      console.log(`[Poll] New tweet from @${account.handle}: "${tweet.text.slice(0, 60)}…"`);
+      console.log(`[Poll] New tweet from @${account.handle}: "${tweet.text?.slice(0, 60)}…"`);
 
       try {
-        const replyText = await generateReply(tweet.text, account.handle, settings);
+        const replyText = await generateReply(tweet.text, account.handle, cfg);
 
         await supabase.from("replies").insert({
-          tweet_id:       tweet.id,
+          tweet_id:       tweetId,
           account_handle: account.handle,
           account_name:   account.name,
           initials:       account.initials,
@@ -58,7 +61,7 @@ async function poll() {
 
         console.log(`[Claude] Draft ready for @${account.handle}`);
       } catch (err) {
-        console.error(`[Claude] Generation failed:`, err.message);
+        console.error(`[Claude] Failed:`, err.message);
       }
     }
   }
