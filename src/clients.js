@@ -55,11 +55,9 @@ async function fetchProfile(handle) {
   }
 }
 
-// ── Post a reply to X using your auth_token ───────────────────
-async function postReply(replyText, tweetId) {
-  const authToken = process.env.X_AUTH_TOKEN;
-  if (!authToken) throw new Error("X_AUTH_TOKEN is not set in environment variables");
-
+// ── Post a reply to X using the user's own auth_token ────────
+async function postReply(replyText, tweetId, authToken) {
+  if (!authToken) throw new Error("No X auth_token found. Please connect your Twitter account in Settings.");
   const res = await xapi.post("/tweet/create", {
     auth_token: authToken,
     text: replyText,

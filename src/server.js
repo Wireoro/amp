@@ -97,7 +97,11 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
   if (fetchErr || !reply) return err(res, "Reply not found", 404);
   if (reply.status !== "pending") return err(res, "Already actioned", 400);
   const replyText = req.body.replyText?.trim() || reply.reply_text;
-  try { await postReply(replyText, reply.tweet_id); } catch(e) { return err(res, "Failed to post to X: " + e.message); }
+  // Get this user's X auth_token from their settings
+  const { data: userSettings } = await supabase.from("settings")
+    .select("x_auth_token").eq("user_id", req.user.id).single();
+  if (!userSettings?.x_auth_token) return err(res, "No Twitter account connected. Please add your auth_token in Settings.", 400);
+  try { await postReply(replyText, reply.tweet_id, userSettings.x_auth_token); } catch(e) { return err(res, "Failed to post to X: " + e.message); }
   const { data: updated, error: upErr } = await supabase.from("replies")
     .update({ status:"approved", reply_text:replyText, actioned_at:new Date().toISOString() })
     .eq("id", id).select().single();
@@ -198,6 +202,54 @@ app.put("/api/settings", async (req, res) => {
     .update(patch).eq("user_id", req.user.id).select().single();
   if (error) return err(res, error.message);
   ok(res, { settings: data });
+});
+
+// ─────────────────────────────────────────────────────────────
+//  TWITTER ACCOUNT CONNECTION
+// ─────────────────────────────────────────────────────────────
+
+// Save user's X auth_token and handle
+app.put("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { x_auth_token, x_handle } = req.body;
+  if (!x_auth_token) return err(res, "auth_token required", 400);
+
+  // Verify the token works by fetching the user's own profile
+  try {
+    const verify = await xapi.get("/user/info", {
+      params: { userName: x_handle || "me", auth_token: x_auth_token }
+    });
+    const handle = verify.data?.userName || x_handle || "";
+    const name   = verify.data?.name || "";
+
+    const { data, error } = await supabase.from("settings")
+      .update({ x_auth_token, x_handle: handle, updated_at: new Date().toISOString() })
+      .eq("user_id", req.user.id).select().single();
+    if (error) return err(res, error.message);
+    ok(res, { handle, name });
+  } catch(e) {
+    return err(res, "Could not verify token with Twitter. Please check it and try again.", 400);
+  }
+});
+
+// Get connection status (never return the actual token to browser)
+app.get("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data } = await supabase.from("settings")
+    .select("x_handle, x_auth_token").eq("user_id", req.user.id).single();
+  res.json({
+    connected: !!data?.x_auth_token,
+    handle:    data?.x_handle || null,
+  });
+});
+
+// Disconnect Twitter account
+app.delete("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  await supabase.from("settings")
+    .update({ x_auth_token: null, x_handle: null })
+    .eq("user_id", req.user.id);
+  ok(res, {});
 });
 
 app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered" }); });

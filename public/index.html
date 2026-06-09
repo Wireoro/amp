@@ -382,14 +382,37 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     </div>
 
     <div class="settings-section">
-      <div class="settings-title">Connected Account</div>
-      <div class="connected-account">
-        <div class="side-avatar">YO</div>
-        <div>
-          <div style="font-size:13px;font-weight:600">@yourhandle</div>
-          <div class="connected-status">Connected</div>
+      <div class="settings-title">Connected Twitter Account</div>
+      <p style="font-size:12px;color:var(--ink-muted);margin-bottom:14px">Connect your Twitter account so approved replies get posted automatically.</p>
+
+      <!-- CONNECTED STATE -->
+      <div id="twitterConnected" style="display:none">
+        <div class="connected-account">
+          <div class="side-avatar" id="twitterInitials">?</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600" id="twitterHandle">@handle</div>
+            <div class="connected-status">Connected</div>
+          </div>
+          <button class="btn-disconnect" onclick="disconnectTwitter()">Disconnect</button>
         </div>
-        <button class="btn-disconnect">Disconnect</button>
+      </div>
+
+      <!-- NOT CONNECTED STATE -->
+      <div id="twitterDisconnected">
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:12px">
+          To get your <strong>auth_token</strong>:<br><br>
+          1. Open <a href="https://x.com" target="_blank" style="color:var(--blue)">x.com</a> and log in<br>
+          2. Press <strong>F12</strong> → Application tab → Cookies → x.com<br>
+          3. Find <strong>auth_token</strong> and copy the value
+        </div>
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;font-weight:600;display:block;margin-bottom:6px">Your Twitter Handle</label>
+        <input type="text" id="twitterHandleInput" placeholder="yourhandle (no @)"
+          style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:3px;font-size:13px;margin-bottom:12px;font-family:inherit;outline:none">
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;font-weight:600;display:block;margin-bottom:6px">auth_token</label>
+        <input type="password" id="twitterTokenInput" placeholder="Paste your auth_token here"
+          style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:3px;font-size:13px;margin-bottom:14px;font-family:inherit;outline:none">
+        <button class="btn-add" onclick="connectTwitter()">Connect Twitter Account</button>
+        <div id="twitterMsg" style="font-size:12px;margin-top:10px;display:none"></div>
       </div>
     </div>
 
@@ -594,6 +617,56 @@ function loadSettings() {
     var toggles = document.querySelectorAll(".toggle");
     if (toggles[0]) toggles[0].classList.toggle("on", !!s.include_question);
   }).catch(function(){});
+  // Load Twitter connection status
+  loadTwitterStatus();
+}
+
+async function loadTwitterStatus() {
+  try {
+    var data = await api("/settings/twitter");
+    if (data.connected) {
+      document.getElementById("twitterConnected").style.display = "block";
+      document.getElementById("twitterDisconnected").style.display = "none";
+      var h = data.handle || "";
+      document.getElementById("twitterHandle").textContent = "@" + h;
+      document.getElementById("twitterInitials").textContent = h.slice(0,2).toUpperCase();
+    } else {
+      document.getElementById("twitterConnected").style.display = "none";
+      document.getElementById("twitterDisconnected").style.display = "block";
+    }
+  } catch(e) {}
+}
+
+async function connectTwitter() {
+  var handle = document.getElementById("twitterHandleInput").value.trim().replace(/^@/,"");
+  var token  = document.getElementById("twitterTokenInput").value.trim();
+  var msg    = document.getElementById("twitterMsg");
+  if (!handle || !token) { showTwitterMsg("Please enter both your handle and auth_token.", "error"); return; }
+  var btn = document.querySelector("#twitterDisconnected .btn-add");
+  btn.disabled = true; btn.textContent = "Connecting…";
+  try {
+    var data = await api("/settings/twitter", { method:"PUT", body: JSON.stringify({ x_handle: handle, x_auth_token: token }) });
+    showTwitterMsg("Connected as @" + data.handle + " ✓", "success");
+    setTimeout(loadTwitterStatus, 800);
+  } catch(e) {
+    showTwitterMsg(e.message, "error");
+  }
+  btn.disabled = false; btn.textContent = "Connect Twitter Account";
+}
+
+async function disconnectTwitter() {
+  try {
+    await api("/settings/twitter", { method:"DELETE" });
+    loadTwitterStatus();
+    showToast("Twitter account disconnected");
+  } catch(e) { showToast("Failed: " + e.message); }
+}
+
+function showTwitterMsg(text, type) {
+  var el = document.getElementById("twitterMsg");
+  el.textContent = text;
+  el.style.display = "block";
+  el.style.color = type === "success" ? "var(--green)" : "var(--red)";
 }
 
 // ─── Actions ──────────────────────────────────────────────────
