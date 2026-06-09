@@ -12,7 +12,7 @@ const { poll, COLORS } = require("./poller");
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(requireAuth); // only blocks /api/* routes, never HTML
+app.use(requireAuth);
 
 // ─────────────────────────────────────────────────────────────
 //  Polling
@@ -25,24 +25,35 @@ function ok(res, data)             { res.json({ success: true, ...data }); }
 function err(res, msg, status=500) { res.status(status).json({ error: msg }); }
 
 // ─────────────────────────────────────────────────────────────
-//  HTML pages — all public, auth handled client-side
+//  HTML — all public, auth is client-side
 // ─────────────────────────────────────────────────────────────
 app.get("/health", (req, res) => res.json({ status: "ok", ts: new Date().toISOString() }));
 app.get("/login",  (req, res) => res.sendFile(path.join(__dirname, "../views/login.html")));
 app.use(express.static(path.join(__dirname, "../public")));
 
 // ─────────────────────────────────────────────────────────────
-//  AUTH API — public
+//  AUTH — public endpoints
 // ─────────────────────────────────────────────────────────────
 app.post("/api/auth/register", async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) return err(res, "All fields required", 400);
   if (password.length < 6) return err(res, "Password must be at least 6 characters", 400);
+
   const { data, error } = await supabase.auth.admin.createUser({
     email, password, email_confirm: true,
     user_metadata: { full_name: name },
   });
   if (error) return err(res, error.message, 400);
+
+  // Create a default settings row for this new user
+  await supabase.from("settings").insert({
+    user_id:          data.user.id,
+    brand_voice:      "Professional but conversational. Sharp and insight-driven. Keep replies under 280 characters.",
+    tone:             "Conversational",
+    max_length:       280,
+    include_question: true,
+  });
+
   const { data: session, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
   if (signInErr) return err(res, signInErr.message, 400);
   ok(res, { access_token: session.session.access_token, user: { email, name } });
@@ -66,17 +77,23 @@ app.post("/api/auth/logout", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  REPLIES
+//  REPLIES — scoped to req.user.id
 // ─────────────────────────────────────────────────────────────
 app.get("/api/replies", async (req, res) => {
-  const { data, error } = await supabase.from("replies").select("*").order("created_at", { ascending: false });
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data, error } = await supabase.from("replies")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .order("created_at", { ascending: false });
   if (error) return err(res, error.message);
   res.json(data);
 });
 
 app.patch("/api/replies/:id/approve", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const id = parseInt(req.params.id, 10);
-  const { data: reply, error: fetchErr } = await supabase.from("replies").select("*").eq("id", id).single();
+  const { data: reply, error: fetchErr } = await supabase.from("replies")
+    .select("*").eq("id", id).eq("user_id", req.user.id).single();
   if (fetchErr || !reply) return err(res, "Reply not found", 404);
   if (reply.status !== "pending") return err(res, "Already actioned", 400);
   const replyText = req.body.replyText?.trim() || reply.reply_text;
@@ -89,19 +106,23 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
 });
 
 app.patch("/api/replies/:id/dismiss", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const id = parseInt(req.params.id, 10);
   const { data: updated, error } = await supabase.from("replies")
     .update({ status:"dismissed", actioned_at:new Date().toISOString() })
-    .eq("id", id).select().single();
+    .eq("id", id).eq("user_id", req.user.id).select().single();
   if (error) return err(res, error.message);
   ok(res, { reply: updated });
 });
 
 app.patch("/api/replies/:id/regenerate", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const id = parseInt(req.params.id, 10);
-  const { data: reply, error: fetchErr } = await supabase.from("replies").select("*").eq("id", id).single();
+  const { data: reply, error: fetchErr } = await supabase.from("replies")
+    .select("*").eq("id", id).eq("user_id", req.user.id).single();
   if (fetchErr || !reply) return err(res, "Reply not found", 404);
-  const { data: settings } = await supabase.from("settings").select("*").eq("id", 1).single();
+  const { data: settings } = await supabase.from("settings")
+    .select("*").eq("user_id", req.user.id).single();
   try {
     const newText = await generateReply(reply.tweet_text, reply.account_handle, settings);
     const { data: updated, error: upErr } = await supabase.from("replies")
@@ -112,50 +133,69 @@ app.patch("/api/replies/:id/regenerate", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-//  WATCHLIST
+//  WATCHLIST — scoped to req.user.id
 // ─────────────────────────────────────────────────────────────
 app.get("/api/accounts", async (req, res) => {
-  const { data, error } = await supabase.from("watchlist").select("*").order("created_at");
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data, error } = await supabase.from("watchlist")
+    .select("*").eq("user_id", req.user.id).order("created_at");
   if (error) return err(res, error.message);
   res.json(data);
 });
 
 app.post("/api/accounts", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const handle = req.body.handle?.replace(/^@/, "").toLowerCase();
   if (!handle) return err(res, "handle required", 400);
-  const { data: existing } = await supabase.from("watchlist").select("id").eq("handle", handle).maybeSingle();
+  const { data: existing } = await supabase.from("watchlist")
+    .select("id").eq("handle", handle).eq("user_id", req.user.id).maybeSingle();
   if (existing) return err(res, "Already in watchlist", 409);
-  const { data: countRows } = await supabase.from("watchlist").select("id");
+  const { data: countRows } = await supabase.from("watchlist")
+    .select("id").eq("user_id", req.user.id);
   const colorIndex = (countRows?.length || 0) % COLORS.length;
   const displayName = await fetchProfile(handle);
   const { data: account, error: insertErr } = await supabase.from("watchlist")
-    .insert({ name:displayName, handle, initials:displayName.slice(0,2).toUpperCase(), color:COLORS[colorIndex] })
+    .insert({ user_id:req.user.id, name:displayName, handle, initials:displayName.slice(0,2).toUpperCase(), color:COLORS[colorIndex] })
     .select().single();
   if (insertErr) return err(res, insertErr.message);
   ok(res, { account });
 });
 
 app.delete("/api/accounts/:id", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const id = parseInt(req.params.id, 10);
-  const { error } = await supabase.from("watchlist").delete().eq("id", id);
+  const { error } = await supabase.from("watchlist")
+    .delete().eq("id", id).eq("user_id", req.user.id);
   if (error) return err(res, error.message);
   ok(res, {});
 });
 
 // ─────────────────────────────────────────────────────────────
-//  SETTINGS
+//  SETTINGS — scoped to req.user.id
 // ─────────────────────────────────────────────────────────────
 app.get("/api/settings", async (req, res) => {
-  const { data, error } = await supabase.from("settings").select("*").eq("id", 1).single();
-  if (error) return err(res, error.message);
+  if (!req.user) return err(res, "Not authenticated", 401);
+  let { data, error } = await supabase.from("settings")
+    .select("*").eq("user_id", req.user.id).single();
+  // Auto-create settings row if missing (legacy accounts)
+  if (error || !data) {
+    const { data: created } = await supabase.from("settings").insert({
+      user_id: req.user.id,
+      brand_voice: "Professional but conversational. Keep replies under 280 characters.",
+      tone: "Conversational", max_length: 280, include_question: true,
+    }).select().single();
+    data = created;
+  }
   res.json(data);
 });
 
 app.put("/api/settings", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
   const allowed = ["brand_voice","tone","max_length","include_question"];
   const patch = { updated_at: new Date().toISOString() };
   allowed.forEach(k => { if (req.body[k] !== undefined) patch[k] = req.body[k]; });
-  const { data, error } = await supabase.from("settings").update(patch).eq("id", 1).select().single();
+  const { data, error } = await supabase.from("settings")
+    .update(patch).eq("user_id", req.user.id).select().single();
   if (error) return err(res, error.message);
   ok(res, { settings: data });
 });
