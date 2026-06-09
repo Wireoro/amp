@@ -11,11 +11,18 @@ const xapi = axios.create({
   timeout: 15000,
 });
 
-// ── Fetch recent tweets for a BATCH of handles in one API call ──
+// ── Get today's date string for the since: filter ─────────────
+function sinceYesterday() {
+  const d = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24h ago
+  return d.toISOString().split("T")[0]; // "YYYY-MM-DD"
+}
+
+// ── Fetch tweets from the last 24h for a batch of handles ─────
 // Splits into chunks of 30 to stay within query length limits
 async function fetchTweetsForAccounts(handles) {
   const CHUNK_SIZE = 30;
   const allTweets = [];
+  const since = sinceYesterday();
 
   for (let i = 0; i < handles.length; i += CHUNK_SIZE) {
     const chunk = handles.slice(i, i + CHUNK_SIZE);
@@ -24,12 +31,12 @@ async function fetchTweetsForAccounts(handles) {
     try {
       const res = await xapi.get("/tweet/advanced_search", {
         params: {
-          q: `(${query}) -is:reply -is:retweet`,
+          q: `(${query}) -is:reply -is:retweet since:${since}`,
           product: "Latest",
         },
       });
       const tweets = res.data?.tweets || [];
-      console.log(`[GetXAPI] Batch ${Math.floor(i/CHUNK_SIZE)+1}: ${tweets.length} tweets for ${chunk.length} accounts`);
+      console.log(`[GetXAPI] Batch ${Math.floor(i/CHUNK_SIZE)+1}: ${tweets.length} tweets (last 24h) for ${chunk.length} accounts`);
       allTweets.push(...tweets);
     } catch (err) {
       console.error(`[GetXAPI] Batch fetch failed:`, err.response?.data || err.message);
