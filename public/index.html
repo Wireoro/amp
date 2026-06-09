@@ -457,6 +457,40 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+// ─── Logout ───────────────────────────────────────────────────
+async function logout() {
+  try { await fetch("/api/auth/logout", { method:"POST", headers:{"Authorization":"Bearer "+localStorage.getItem("amp_token")} }); } catch(e) {}
+  localStorage.removeItem("amp_token");
+  window.location.replace("/login");
+}
+
+// ─── Load user info into sidebar ──────────────────────────────
+function loadUser() {
+  try {
+    var token = localStorage.getItem("amp_token");
+    var payload = JSON.parse(atob(token.split(".")[1]));
+    var email = payload.email || "";
+    var name  = (payload.user_metadata && payload.user_metadata.full_name) ? payload.user_metadata.full_name : email.split("@")[0];
+    document.getElementById("sideName").textContent     = name;
+    document.getElementById("sideEmail").textContent    = email;
+    document.getElementById("sideInitials").textContent = name.slice(0,2).toUpperCase();
+  } catch(e) {}
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+(function(){
+  if (!localStorage.getItem("amp_token")) { window.location.replace("/login"); return; }
+  loadUser();
+  var now = new Date(), h = now.getHours();
+  var greet = h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+  document.getElementById("greeting").innerHTML = greet+". <span id='pendingCount'>…</span> replies waiting.";
+  var m=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var d=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  document.getElementById("todayDate").textContent = d[now.getDay()]+", "+m[now.getMonth()]+" "+now.getDate()+", "+now.getFullYear();
+  loadData();
+  setInterval(loadData, 60000);
+})();
+
 // ─── State ────────────────────────────────────────────────────
 var accounts = [], replies = [], currentFilter = "all", searchQuery = "";
 
@@ -726,17 +760,7 @@ async function loadData() {
   }
 }
 
-// ─── Init ─────────────────────────────────────────────────────
-(function(){
-  var now = new Date(), h = now.getHours();
-  var greet = h<12?"Good morning":h<17?"Good afternoon":"Good evening";
-  document.getElementById("greeting").innerHTML = greet+". <span id='pendingCount'>\u2026</span>&nbsp;replies waiting.";
-  var m=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var d=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-  document.getElementById("todayDate").textContent = d[now.getDay()]+", "+m[now.getMonth()]+" "+now.getDate()+", "+now.getFullYear();
-  loadData();
-  setInterval(loadData, 60000); // refresh every 60s
-})();
+
 </script>
 </body>
 </html>
