@@ -3,6 +3,10 @@ const { fetchRecentTweets, generateReply } = require("./clients");
 
 const COLORS = ["#d97064","#4a8fd4","#5a9a5a","#8b71c7","#d4943e","#c04040","#4aa88a","#d4703e"];
 
+// Only process tweets posted after this server boot time
+const SERVER_START = new Date();
+console.log(`[Poll] Server started at ${SERVER_START.toISOString()} — only tweets after this will be processed.`);
+
 async function poll() {
   console.log("[Poll] Starting sweep…");
 
@@ -25,13 +29,19 @@ async function poll() {
 
   for (const account of accounts) {
     const tweets = await fetchRecentTweets(account.handle);
-    console.log(`[Poll] @${account.handle} → ${tweets.length} tweets found`);
+    console.log(`[Poll] @${account.handle} → ${tweets.length} tweets fetched`);
 
     for (const tweet of tweets) {
-      // GetXAPI advanced_search returns tweet.id as string
       const tweetId = String(tweet.id);
 
-      // Skip if already seen
+      // ── Only process tweets posted AFTER server boot ──────────
+      // GetXAPI returns createdAt as "Sun Jan 25 13:05:46 +0000 2026"
+      const tweetDate = new Date(tweet.createdAt);
+      if (isNaN(tweetDate) || tweetDate < SERVER_START) {
+        continue; // skip old tweets
+      }
+
+      // ── Skip if already seen ──────────────────────────────────
       const { data: existing } = await supabase
         .from("seen_tweets")
         .select("tweet_id")
@@ -40,10 +50,10 @@ async function poll() {
 
       if (existing) continue;
 
-      // Mark seen immediately
+      // Mark seen immediately to avoid duplicates
       await supabase.from("seen_tweets").insert({ tweet_id: tweetId });
 
-      console.log(`[Poll] New tweet from @${account.handle}: "${tweet.text?.slice(0, 60)}…"`);
+      console.log(`[Poll] New tweet from @${account.handle} at ${tweetDate.toISOString()}: "${tweet.text?.slice(0, 60)}…"`);
 
       try {
         const replyText = await generateReply(tweet.text, account.handle, cfg);
