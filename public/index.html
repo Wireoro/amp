@@ -426,6 +426,20 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
         <div id="accountApproval" style="margin-top:12px"></div>
       </div>
     </div>
+
+    <!-- Sparkline per-account pipeline -->
+    <div class="analytics-card" style="margin-top:16px;padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+        <h4>Pipeline by Account</h4>
+        <div style="display:flex;gap:16px;margin-top:6px;font-size:10px;color:var(--ink-faint)">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#c0392b;margin-right:4px"></span>Filtered</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#BA7517;margin-right:4px"></span>Pending</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3B6D11;margin-right:4px"></span>Replied</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#888780;margin-right:4px"></span>Dismissed</span>
+        </div>
+      </div>
+      <div id="sparklineRows"></div>
+    </div>
   </div>
 
   <!-- SETTINGS -->
@@ -1190,6 +1204,38 @@ async function initCharts() {
         '<div style="background:'+color+';border-radius:3px;height:6px;width:'+rate+'%"></div>' +
       '</div></div>';
   }).join("") || '<div style="font-size:12px;color:var(--ink-faint)">No data yet</div>';
+
+  // ── Sparkline rows per account ─────────────────────────────
+  var sparkEl = document.getElementById("sparklineRows");
+  if (sparkEl) {
+    sparkEl.innerHTML = accounts.map(function(a) {
+      var total = a.approved + a.dismissed + a.pending;
+      if (total === 0) return '';
+      // Use generated as the bar denominator so proportions are honest
+      var denom = Math.max(a.generated, 1);
+      var fPct  = Math.round((a.generated - total) / denom * 100); // implied filtered = generated - (approved+dismissed+pending)
+      var filtered = Math.max(0, a.generated - total);
+      var archivedTag = a.archived
+        ? '<span style="font-size:9px;background:#f0ede6;color:#aaa;padding:1px 5px;border-radius:8px;margin-left:4px">archived</span>' : '';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:0.5px solid var(--border);opacity:'+(a.archived?'0.45':'1')+'">' +
+        '<div style="display:flex;align-items:center;gap:7px;width:140px;flex-shrink:0">' +
+          '<div style="width:26px;height:26px;border-radius:50%;background:'+a.color+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">'+a.initials+'</div>' +
+          '<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+a.handle+archivedTag+'</div>' +
+        '</div>' +
+        '<div style="flex:1;display:flex;height:10px;border-radius:5px;overflow:hidden;gap:1px">' +
+          (filtered > 0 ? '<div style="flex:'+filtered+';background:#c0392b;opacity:0.75" title="Filtered: '+filtered+'"></div>' : '') +
+          (a.pending  > 0 ? '<div style="flex:'+a.pending+';background:#BA7517;opacity:0.8" title="Pending: '+a.pending+'"></div>' : '') +
+          (a.approved > 0 ? '<div style="flex:'+a.approved+';background:#3B6D11;opacity:0.8" title="Replied: '+a.approved+'"></div>' : '') +
+          (a.dismissed> 0 ? '<div style="flex:'+a.dismissed+';background:#888780;opacity:0.6" title="Dismissed: '+a.dismissed+'"></div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:14px;font-size:10px;color:var(--ink-faint);width:170px;justify-content:flex-end;flex-shrink:0">' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#c0392b">'+filtered+'</span>'+Math.round(filtered/denom*100)+'%</div>' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#3B6D11">'+a.approved+'</span>'+Math.round(a.approved/denom*100)+'%</div>' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#888780">'+a.dismissed+'</span>'+Math.round(a.dismissed/denom*100)+'%</div>' +
+        '</div>' +
+      '</div>';
+    }).join("") || '<div style="padding:16px;font-size:12px;color:var(--ink-faint)">No data yet</div>';
+  }
 }
 
 // ─── Load data from server ────────────────────────────────────

@@ -457,20 +457,32 @@ app.get("/api/analytics", async (req, res) => {
   const daily = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
 
   // ── Per-account breakdown ─────────────────────────────────
+  // Also grab watchlist colors/initials for the sparkline avatars
+  const { data: watchlistRows } = await supabase.from("watchlist")
+    .select("handle, name, initials, color, archived_at").eq("user_id", req.user.id);
+  const watchlistMap = {};
+  (watchlistRows || []).forEach(w => { watchlistMap[w.handle.toLowerCase()] = w; });
+
   const accountMap = {};
   rows.forEach(r => {
     const h = r.account_handle;
+    const wl = watchlistMap[h.toLowerCase()] || {};
     if (!accountMap[h]) accountMap[h] = {
-      handle: h, generated: 0, approved: 0, dismissed: 0,
+      handle:   h,
+      name:     wl.name     || h,
+      initials: wl.initials || h.slice(0,2).toUpperCase(),
+      color:    wl.color    || "#888",
+      generated: 0, approved: 0, dismissed: 0, pending: 0,
       archived: archivedSet.has(h.toLowerCase())
     };
     accountMap[h].generated++;
     if (r.status === "approved")  accountMap[h].approved++;
     if (r.status === "dismissed") accountMap[h].dismissed++;
+    if (r.status === "pending" || r.status === "queued") accountMap[h].pending++;
   });
   const accounts = Object.values(accountMap)
     .sort((a, b) => b.generated - a.generated)
-    .slice(0, 20); // increase limit to include archived
+    .slice(0, 20);
 
   // ── Summary ───────────────────────────────────────────────
   const total     = rows.length;
