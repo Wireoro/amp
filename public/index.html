@@ -109,7 +109,23 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .tweet-head a:hover .tweet-name { color: var(--blue); }
 .tweet-handle { font-size: 11px; color: var(--ink-faint); }
 .tweet-text { font-family: var(--serif); font-size: 15px; line-height: 1.65; color: #4a4a4a; margin-bottom: 18px; font-style: italic; }
-.reply-section { padding-top: 16px; border-top: 1px solid var(--border); }
+.slot-tracker-wrap {
+  margin: 0 0 20px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 18px 0 22px;
+}
+.slot-tracker-title {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-faint);
+  font-weight: 600;
+  padding: 0 30px;
+  margin-bottom: 6px;
+}
+#slotCanvas { display: block; width: 100%; height: 72px; }
 .reply-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; color: var(--blue); margin-bottom: 8px; font-weight: 600; }
 .reply-text {
   font-size: 13.5px; line-height: 1.65; color: var(--ink-light); margin-bottom: 18px;
@@ -304,6 +320,12 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
       <div class="stat-item"><div class="stat-num" id="statReplied">147</div><div class="stat-label">Replied</div></div>
       <div class="stat-item"><div class="stat-num" id="statApproved">82%</div><div class="stat-label">Approval Rate</div></div>
       <div class="stat-item"><div class="stat-num" id="statEngagement">+34%</div><div class="stat-label">Engagement</div></div>
+    </div>
+
+    <!-- Reply slot tracker -->
+    <div class="slot-tracker-wrap">
+      <div class="slot-tracker-title">TODAY'S REPLY SLOTS</div>
+      <canvas id="slotCanvas"></canvas>
     </div>
 
     <div class="search-bar">
@@ -502,7 +524,105 @@ function loadUser() {
   } catch(e) {}
 }
 
-// ─── Init ─────────────────────────────────────────────────────
+// ─── Reply Slot Tracker ───────────────────────────────────────
+var DAILY_LIMIT     = 40;   // safe daily reply limit
+var POLL_INTERVAL_S = 300;  // 5 minutes in seconds
+var slotCanvas      = document.getElementById("slotCanvas");
+var slotCtx         = slotCanvas ? slotCanvas.getContext("2d") : null;
+var pollStartTime   = Date.now(); // track when last poll ran
+
+function formatTime(s) {
+  var m = Math.floor(s / 60), sec = s % 60;
+  return m + ":" + (sec < 10 ? "0" : "") + sec;
+}
+
+function progressColor(p) {
+  if (p < 0.7)  return "#E85D2B";  // orange — waiting
+  if (p < 0.88) return "#E8A92B";  // amber  — almost
+  return "#1B8A6B";                 // green  — ready
+}
+
+function renderTokenSlots(sent, total, p) {
+  if (!slotCtx) return;
+  var canvas = slotCanvas;
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.offsetWidth, h = 72;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + "px";
+  slotCtx.scale(dpr, dpr);
+
+  var ctx = slotCtx;
+  ctx.clearRect(0, 0, w, h);
+  var pad = 30, slotGap = 3;
+  var barW = w - pad * 2, barH = 28;
+  var slotW = (barW - (total - 1) * slotGap) / total;
+  var y = h / 2 - barH / 2;
+
+  for (var i = 0; i < total; i++) {
+    var x = pad + i * (slotW + slotGap);
+    ctx.fillStyle = "#EDEAE6";
+    ctx.beginPath();
+    ctx.roundRect(x, y, slotW, barH, 4);
+    ctx.fill();
+    var fill = 0;
+    if (i < sent)       fill = 1;
+    else if (i === sent) fill = p;
+    if (fill > 0) {
+      ctx.fillStyle = i < sent ? "#1B8A6B" : progressColor(p);
+      ctx.beginPath();
+      ctx.roundRect(x, y, slotW * fill, barH, 4);
+      ctx.fill();
+    }
+  }
+
+  ctx.fillStyle = "#AAA";
+  ctx.font = "600 11px system-ui";
+  ctx.textAlign = "left";
+  ctx.fillText(sent + " sent today", pad, y - 8);
+  ctx.textAlign = "right";
+  ctx.fillText((total - sent) + " remaining", w - pad, y - 8);
+
+  if (sent < total) {
+    var curX = pad + sent * (slotW + slotGap) + slotW / 2;
+    var remaining = Math.max(0, Math.ceil((1 - p) * POLL_INTERVAL_S));
+    ctx.fillStyle = progressColor(p);
+    ctx.font = "bold 12px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("next poll " + formatTime(remaining), curX, y + barH + 18);
+    ctx.beginPath();
+    ctx.moveTo(curX, y + barH + 3);
+    ctx.lineTo(curX - 4, y + barH + 9);
+    ctx.lineTo(curX + 4, y + barH + 9);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillStyle = "#1B8A6B";
+    ctx.font = "bold 12px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Daily limit reached", w / 2, y + barH + 18);
+  }
+}
+
+function tickSlotTracker() {
+  var sent  = replies.filter(function(r){ return r.status === "approved"; }).length;
+  var total = DAILY_LIMIT;
+  var elapsed = (Date.now() - pollStartTime) / 1000;
+  var p = Math.min(elapsed / POLL_INTERVAL_S, 1);
+  renderTokenSlots(Math.min(sent, total), total, p);
+}
+
+// Reset poll timer when a manual poll is triggered
+var _origTriggerPoll = triggerPoll;
+triggerPoll = async function() {
+  pollStartTime = Date.now();
+  await _origTriggerPoll();
+};
+
+// Tick every second
+setInterval(tickSlotTracker, 1000);
+// Also re-render on window resize
+window.addEventListener("resize", tickSlotTracker);
 (function(){
   if (!localStorage.getItem("amp_token")) { window.location.replace("/login"); return; }
   loadUser();
@@ -834,6 +954,7 @@ async function loadData() {
     accounts = results[0];
     replies  = results[1];
     renderSideAccounts(); renderCards(); updateCounts(); renderWatchlist();
+    tickSlotTracker();
   } catch(e) {
     showToast("Could not reach server");
     console.error(e);
