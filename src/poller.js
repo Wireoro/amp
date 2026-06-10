@@ -11,7 +11,7 @@ async function poll() {
   console.log("[Poll] Starting sweep…");
 
   const { data: allAccounts } = await supabase
-    .from("watchlist").select("*").order("created_at");
+    .from("watchlist").select("*").is("archived_at", null).order("created_at");
 
   if (!allAccounts?.length) { console.log("[Poll] No accounts."); return; }
 

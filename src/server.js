@@ -303,8 +303,10 @@ app.patch("/api/replies/:id/regenerate", async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 app.get("/api/accounts", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
-  const { data, error } = await supabase.from("watchlist")
-    .select("*").eq("user_id", req.user.id).order("created_at");
+  const showArchived = req.query.archived === "true";
+  let q = supabase.from("watchlist").select("*").eq("user_id", req.user.id).order("created_at");
+  if (!showArchived) q = q.is("archived_at", null); // only active by default
+  const { data, error } = await q;
   if (error) return err(res, error.message);
   res.json(data);
 });
@@ -313,11 +315,19 @@ app.post("/api/accounts", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
   const handle = req.body.handle?.replace(/^@/, "").toLowerCase();
   if (!handle) return err(res, "handle required", 400);
+  // Check if already exists (including archived)
   const { data: existing } = await supabase.from("watchlist")
-    .select("id").eq("handle", handle).eq("user_id", req.user.id).maybeSingle();
-  if (existing) return err(res, "Already in watchlist", 409);
+    .select("id, archived_at").eq("handle", handle).eq("user_id", req.user.id).maybeSingle();
+  if (existing && !existing.archived_at) return err(res, "Already in watchlist", 409);
+  // If archived, unarchive instead of inserting
+  if (existing?.archived_at) {
+    const { data: account } = await supabase.from("watchlist")
+      .update({ archived_at: null, last_tweet_id: null })
+      .eq("id", existing.id).select().single();
+    return ok(res, { account });
+  }
   const { data: countRows } = await supabase.from("watchlist")
-    .select("id").eq("user_id", req.user.id);
+    .select("id").eq("user_id", req.user.id).is("archived_at", null);
   const colorIndex = (countRows?.length || 0) % COLORS.length;
   const displayName = await fetchProfile(handle);
   const { data: account, error: insertErr } = await supabase.from("watchlist")
@@ -330,8 +340,10 @@ app.post("/api/accounts", async (req, res) => {
 app.delete("/api/accounts/:id", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
   const id = parseInt(req.params.id, 10);
+  // Soft archive instead of hard delete
   const { error } = await supabase.from("watchlist")
-    .delete().eq("id", id).eq("user_id", req.user.id);
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", id).eq("user_id", req.user.id);
   if (error) return err(res, error.message);
   ok(res, {});
 });
@@ -414,7 +426,6 @@ app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered
 app.get("/api/analytics", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
 
-  // Last 30 days
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: rows } = await supabase
@@ -425,6 +436,14 @@ app.get("/api/analytics", async (req, res) => {
     .order("created_at", { ascending: true });
 
   if (!rows) return ok(res, { daily: [], accounts: [] });
+
+  // Get archived account handles for this user
+  const { data: archivedAccounts } = await supabase
+    .from("watchlist")
+    .select("handle, archived_at")
+    .eq("user_id", req.user.id)
+    .not("archived_at", "is", null);
+  const archivedSet = new Set((archivedAccounts || []).map(a => a.handle.toLowerCase()));
 
   // ── Daily breakdown ───────────────────────────────────────
   const dailyMap = {};
@@ -441,14 +460,17 @@ app.get("/api/analytics", async (req, res) => {
   const accountMap = {};
   rows.forEach(r => {
     const h = r.account_handle;
-    if (!accountMap[h]) accountMap[h] = { handle: h, generated: 0, approved: 0, dismissed: 0 };
+    if (!accountMap[h]) accountMap[h] = {
+      handle: h, generated: 0, approved: 0, dismissed: 0,
+      archived: archivedSet.has(h.toLowerCase())
+    };
     accountMap[h].generated++;
     if (r.status === "approved")  accountMap[h].approved++;
     if (r.status === "dismissed") accountMap[h].dismissed++;
   });
   const accounts = Object.values(accountMap)
     .sort((a, b) => b.generated - a.generated)
-    .slice(0, 10);
+    .slice(0, 20); // increase limit to include archived
 
   // ── Summary ───────────────────────────────────────────────
   const total     = rows.length;
