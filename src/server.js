@@ -171,8 +171,16 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
     .select("x_auth_token, max_replies_per_hour").eq("user_id", req.user.id).single();
   if (!userSettings?.x_auth_token) return err(res, "No Twitter account connected. Please add your auth_token in Settings.", 400);
 
-  const maxPerHour = userSettings.max_replies_per_hour || 5;
-  const slotMinutes = Math.ceil(60 / maxPerHour); // e.g. 5/hour = slot every 12 min
+  const maxPerHour  = userSettings.max_replies_per_hour || 5;
+  const baseMinutes = 60 / maxPerHour; // e.g. 10/hour = 6 min base
+
+  // Random gap: pick any value between base×0.70 and base×1.30
+  function randomGapMs() {
+    const min = baseMinutes * 0.70;
+    const max = baseMinutes * 1.30;
+    const randomMinutes = min + Math.random() * (max - min);
+    return Math.round(randomMinutes * 60 * 1000);
+  }
 
   // Find the latest scheduled_at in the queue for this user
   const { data: lastQueued } = await supabase.from("replies")
@@ -184,15 +192,14 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
     .maybeSingle();
 
   const now = new Date();
+  const gap = randomGapMs();
   let scheduledAt;
   if (!lastQueued?.scheduled_at) {
-    // Nothing queued — schedule from now
-    scheduledAt = new Date(now.getTime() + slotMinutes * 60 * 1000);
+    scheduledAt = new Date(now.getTime() + gap);
   } else {
-    // Schedule after the last queued item
     const lastTime = new Date(lastQueued.scheduled_at);
-    const nextSlot = new Date(lastTime.getTime() + slotMinutes * 60 * 1000);
-    scheduledAt = nextSlot > now ? nextSlot : new Date(now.getTime() + slotMinutes * 60 * 1000);
+    const nextSlot = new Date(lastTime.getTime() + gap);
+    scheduledAt = nextSlot > now ? nextSlot : new Date(now.getTime() + gap);
   }
 
   const { data: updated, error: upErr } = await supabase.from("replies")
