@@ -845,10 +845,10 @@ async function approveReply(id) {
   var text = el ? el.textContent.trim() : null;
   card && card.classList.add("approved");
   try {
-    await api("/replies/"+id+"/approve", { method:"PATCH", body: JSON.stringify({ replyText: text }) });
+    var data = await api("/replies/"+id+"/approve", { method:"PATCH", body: JSON.stringify({ replyText: text }) });
     var r = replies.find(function(x){return x.id===id});
     if (r) { r.status="queued"; if(text) r.reply_text=text; }
-    var t = data.scheduledAt ? "Queued for " + formatScheduledTime(data.scheduledAt) : "Queued ✓";
+    var t = data && data.scheduledAt ? "Queued for " + formatScheduledTime(data.scheduledAt) : "Queued ✓";
     showToast(t, "success");
     loadQueue();
   } catch(e) {
