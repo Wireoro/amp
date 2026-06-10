@@ -15,11 +15,50 @@ app.use(express.json());
 app.use(requireAuth);
 
 // ─────────────────────────────────────────────────────────────
-//  Polling
+//  Smart polling — Paris time (UTC+2 summer)
+//  00:00–11:00 Paris → no calls
+//  11:00–14:00 Paris → every 15 min
+//  14:00–23:30 Paris → every 5 min
+//  23:30–00:00 Paris → no calls
 // ─────────────────────────────────────────────────────────────
-const INTERVAL = parseInt(process.env.POLL_INTERVAL_MINUTES || "5", 10);
-cron.schedule(`*/${INTERVAL} * * * *`, poll);
-poll();
+function parisHour() {
+  const now = new Date();
+  return (now.getUTCHours() + 2) % 24; // UTC+2 Paris summer
+}
+
+function parisMinute() {
+  return new Date().getUTCMinutes();
+}
+
+function shouldPollNow(min) {
+  const h = parisHour();
+  const m = parisMinute();
+  const totalMins = h * 60 + m; // minutes since midnight Paris
+
+  const start15  = 11 * 60;       // 11:00
+  const start5   = 14 * 60;       // 14:00
+  const end      = 23 * 60 + 30;  // 23:30
+
+  if (totalMins < start15)  return false;                  // 00:00–11:00 → silent
+  if (totalMins >= end)     return false;                  // 23:30–00:00 → silent
+  if (totalMins < start5)   return min % 15 === 0;         // 11:00–14:00 → every 15 min
+  return min % 5 === 0;                                    // 14:00–23:30 → every 5 min
+}
+
+// Single cron every minute — decides whether to actually poll
+cron.schedule("* * * * *", () => {
+  const min = new Date().getUTCMinutes();
+  if (shouldPollNow(min)) {
+    const h = parisHour();
+    const m = parisMinute();
+    const total = h * 60 + m;
+    const label = total < 14*60 ? "11:00–14:00 (15min)" : "14:00–23:30 (5min)";
+    console.log(`[Poll] Triggered — Paris ${h}:${String(m).padStart(2,"0")} — ${label}`);
+    poll();
+  }
+});
+
+poll(); // run once on boot
 
 function ok(res, data)             { res.json({ success: true, ...data }); }
 function err(res, msg, status=500) { res.status(status).json({ error: msg }); }
