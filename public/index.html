@@ -385,29 +385,42 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     </div>
 
     <!-- Summary cards -->
-    <div class="stats" style="border-bottom:none;padding-bottom:0;margin-bottom:20px">
+    <div class="stats" style="border-bottom:none;padding-bottom:0;margin-bottom:16px">
       <div class="stat-item"><div class="metric-big" id="anTotal">—</div><div class="metric-change">Generated</div></div>
       <div class="stat-item"><div class="metric-big" id="anApproved">—</div><div class="metric-change">Sent</div></div>
       <div class="stat-item"><div class="metric-big" id="anDismissed">—</div><div class="metric-change">Dismissed</div></div>
       <div class="stat-item"><div class="metric-big" id="anRate">—</div><div class="metric-change">Approval rate</div></div>
     </div>
 
+    <!-- Today's funnel — Concept C chips -->
+    <div class="analytics-card" style="margin-bottom:16px">
+      <h4 style="margin-bottom:12px">Today's pipeline</h4>
+      <div id="funnelChips" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"></div>
+    </div>
+
     <div class="analytics-grid">
+      <div class="analytics-card">
+        <h4>Tweets Fetched Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartFetched" role="img" aria-label="Tweets fetched per day bar chart"></canvas></div>
+      </div>
       <div class="analytics-card">
         <h4>Replies Generated Per Day</h4>
         <div class="chart-wrap"><canvas id="chartReplies" role="img" aria-label="Replies generated per day bar chart"></canvas></div>
-      </div>
-      <div class="analytics-card">
-        <h4>Approval Rate Over Time</h4>
-        <div class="chart-wrap"><canvas id="chartApproval" role="img" aria-label="Approval rate over time line chart"></canvas></div>
       </div>
     </div>
 
     <div class="analytics-grid" style="margin-top:16px">
       <div class="analytics-card">
+        <h4>Approval Rate Over Time</h4>
+        <div class="chart-wrap"><canvas id="chartApproval" role="img" aria-label="Approval rate over time line chart"></canvas></div>
+      </div>
+      <div class="analytics-card">
         <h4>Top Accounts by Drafts Generated</h4>
         <div id="accountGenerated" style="margin-top:12px"></div>
       </div>
+    </div>
+
+    <div class="analytics-grid" style="margin-top:16px">
       <div class="analytics-card">
         <h4>Approval Rate by Account</h4>
         <div id="accountApproval" style="margin-top:12px"></div>
@@ -1022,15 +1035,18 @@ document.addEventListener("keydown", function(e) {
 
 // ─── Charts ───────────────────────────────────────────────────
 var chartsInit = false;
-var chartRepliesInst = null;
+var chartRepliesInst  = null;
 var chartApprovalInst = null;
+var chartFetchedInst  = null;
 
 async function initCharts() {
   chartsInit = true;
   var data = await api("/analytics");
-  var daily    = data.daily    || [];
-  var accounts = data.accounts || [];
-  var summary  = data.summary  || {};
+  var daily      = data.daily      || [];
+  var accounts   = data.accounts   || [];
+  var summary    = data.summary    || {};
+  var fetchStats = data.fetchStats || [];
+  var funnel     = data.funnel     || {};
 
   // ── Summary cards ──────────────────────────────────────────
   document.getElementById("anTotal").textContent     = summary.total     || 0;
@@ -1038,7 +1054,54 @@ async function initCharts() {
   document.getElementById("anDismissed").textContent = summary.dismissed || 0;
   document.getElementById("anRate").textContent      = (summary.approvalRate || 0) + "%";
 
-  var labels   = daily.map(function(d){ return d.date.slice(5); }); // MM-DD
+  // ── Funnel chips ───────────────────────────────────────────
+  var chips = [
+    { val: funnel.fetched   || 0, lbl: "Fetched",   bg: "var(--cream)",  color: "var(--ink-light)" },
+    { val: funnel.filtered  || 0, lbl: "Filtered",  bg: "#fbeaea",       color: "#c0392b"          },
+    { val: funnel.selected  || 0, lbl: "Selected",  bg: "#faeeda",       color: "#854F0B"          },
+    { val: funnel.replied   || 0, lbl: "Replied",   bg: "#eaf3de",       color: "#3B6D11"          },
+    { val: funnel.dismissed || 0, lbl: "Dismissed", bg: "var(--cream)",  color: "var(--ink-faint)" },
+  ];
+  var funnelEl = document.getElementById("funnelChips");
+  if (funnelEl) {
+    funnelEl.innerHTML = chips.map(function(c, i) {
+      return (i > 0 ? '<span style="color:var(--ink-faint);font-size:14px;padding-bottom:4px">›</span>' : '') +
+        '<div style="display:flex;flex-direction:column;align-items:center;padding:8px 14px;border-radius:8px;background:'+c.bg+';min-width:76px">' +
+          '<span style="font-size:20px;font-weight:600;color:'+c.color+';line-height:1">'+c.val+'</span>' +
+          '<span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:'+c.color+';margin-top:3px;opacity:0.8">'+c.lbl+'</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  var tick = { font:{ family:"-apple-system,sans-serif", size:10 }, color:"#bbb" };
+
+  // ── Chart: Fetched per day ─────────────────────────────────
+  var fetchLabels = fetchStats.map(function(d){ return d.date.slice(5); });
+  var fetchedVals = fetchStats.map(function(d){ return d.fetched; });
+  var filteredVals = fetchStats.map(function(d){ return d.filtered; });
+  var selectedVals = fetchStats.map(function(d){ return d.selected; });
+  if (chartFetchedInst) chartFetchedInst.destroy();
+  chartFetchedInst = new Chart(document.getElementById("chartFetched"), {
+    type: "bar",
+    data: {
+      labels: fetchLabels,
+      datasets: [
+        { label:"Filtered",  data: filteredVals, backgroundColor:"rgba(192,57,43,0.5)",  borderRadius:2 },
+        { label:"Selected",  data: selectedVals, backgroundColor:"rgba(186,117,23,0.7)", borderRadius:2 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"bottom", labels:{ font:{ size:10 }, boxWidth:10 } } },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:tick },
+        y:{ stacked:true, grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Daily reply chart vars ─────────────────────────────────
+  var labels    = daily.map(function(d){ return d.date.slice(5); });
   var generated = daily.map(function(d){ return d.generated; });
   var approved  = daily.map(function(d){ return d.approved; });
   var dismissed = daily.map(function(d){ return d.dismissed; });
@@ -1047,9 +1110,6 @@ async function initCharts() {
     return acted > 0 ? Math.round(d.approved / acted * 100) : null;
   });
 
-  var tick = { font:{ family:"-apple-system,sans-serif", size:10 }, color:"#bbb" };
-
-  // ── Chart 1: Generated per day (stacked) ──────────────────
   if (chartRepliesInst) chartRepliesInst.destroy();
   chartRepliesInst = new Chart(document.getElementById("chartReplies"), {
     type: "bar",

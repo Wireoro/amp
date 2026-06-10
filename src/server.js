@@ -478,7 +478,28 @@ app.get("/api/analytics", async (req, res) => {
   const dismissed = rows.filter(r => r.status === "dismissed").length;
   const approvalRate = total > 0 ? Math.round((approved / (approved + dismissed || 1)) * 100) : 0;
 
-  ok(res, { daily, accounts, summary: { total, approved, dismissed, approvalRate } });
+  // ── Daily fetch stats (from daily_stats table) ────────────
+  const { data: fetchStats } = await supabase
+    .from("daily_stats")
+    .select("date, fetched, filtered, selected")
+    .eq("user_id", req.user.id)
+    .gte("date", since.split("T")[0])
+    .order("date", { ascending: true });
+
+  // ── Today's funnel totals ─────────────────────────────────
+  const today = new Date().toISOString().split("T")[0];
+  const todayStat = (fetchStats || []).find(s => s.date === today) || { fetched: 0, filtered: 0, selected: 0 };
+  const todayReplied   = rows.filter(r => r.status === "approved"  && r.created_at?.startsWith(today)).length;
+  const todayDismissed = rows.filter(r => r.status === "dismissed" && r.created_at?.startsWith(today)).length;
+  const funnel = {
+    fetched:   todayStat.fetched,
+    filtered:  todayStat.filtered,
+    selected:  todayStat.selected,
+    replied:   todayReplied,
+    dismissed: todayDismissed,
+  };
+
+  ok(res, { daily, accounts, summary: { total, approved, dismissed, approvalRate }, fetchStats: fetchStats || [], funnel });
 });
 
 // ─────────────────────────────────────────────────────────────
