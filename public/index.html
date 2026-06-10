@@ -1137,14 +1137,16 @@ async function initCharts() {
   });
 
   // ── Chart: Replies posted to Twitter per day ───────────────
-  var postedVals = daily.map(function(d){ return d.posted || d.approved || 0; });
+  var postedByDay  = data.postedByDay || [];
+  var postedLabels = postedByDay.map(function(d){ return d.date.slice(5); });
+  var postedVals   = postedByDay.map(function(d){ return d.count; });
   if (window.chartPostedInst) window.chartPostedInst.destroy();
   window.chartPostedInst = new Chart(document.getElementById("chartPosted"), {
     type: "bar",
     data: {
-      labels: labels,
+      labels: postedLabels,
       datasets:[{
-        label:"Replies posted",
+        label:"Replies posted to X",
         data: postedVals,
         backgroundColor:"rgba(59,109,17,0.75)",
         borderRadius:3,
@@ -1155,7 +1157,7 @@ async function initCharts() {
       plugins:{ legend:{ display:false } },
       scales:{
         x:{ grid:{ display:false }, ticks:tick },
-        y:{ grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true, ticks:{ ...tick, stepSize:1 } }
+        y:{ grid:{ color:"#f0ede6" }, ticks:{ ...tick, stepSize:1 }, beginAtZero:true }
       }
     }
   });

@@ -449,22 +449,32 @@ app.get("/api/analytics", async (req, res) => {
   const dailyMap = {};
   rows.forEach(r => {
     const day = r.created_at.split("T")[0];
-    if (!dailyMap[day]) dailyMap[day] = { date: day, generated: 0, approved: 0, dismissed: 0 };
+    if (!dailyMap[day]) dailyMap[day] = { date: day, generated: 0, approved: 0, dismissed: 0, posted: 0 };
     dailyMap[day].generated++;
     if (r.status === "approved")  dailyMap[day].approved++;
     if (r.status === "dismissed") dailyMap[day].dismissed++;
   });
 
-  // Also count by actioned_at date (when actually posted to Twitter)
+  // Count by actioned_at date (when actually posted to Twitter)
   rows.forEach(r => {
     if (r.status === "approved" && r.actioned_at) {
       const day = r.actioned_at.split("T")[0];
-      if (dailyMap[day]) dailyMap[day].posted = (dailyMap[day].posted || 0) + 1;
-      else dailyMap[day] = { date: day, generated: 0, approved: 0, dismissed: 0, posted: 1 };
+      if (!dailyMap[day]) dailyMap[day] = { date: day, generated: 0, approved: 0, dismissed: 0, posted: 0 };
+      dailyMap[day].posted = (dailyMap[day].posted || 0) + 1;
     }
   });
 
   const daily = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Dedicated posted-by-day array using actioned_at
+  const postedMap = {};
+  rows.filter(r => r.status === "approved" && r.actioned_at).forEach(r => {
+    const day = r.actioned_at.split("T")[0];
+    postedMap[day] = (postedMap[day] || 0) + 1;
+  });
+  const postedByDay = Object.entries(postedMap)
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
   // ── Per-account breakdown ─────────────────────────────────
   // Also grab watchlist colors/initials for the sparkline avatars
@@ -521,7 +531,7 @@ app.get("/api/analytics", async (req, res) => {
     dismissed: todayDismissed,
   };
 
-  ok(res, { daily, accounts, summary: { total, approved, dismissed, approvalRate }, fetchStats: fetchStats || [], funnel });
+  ok(res, { daily, accounts, summary: { total, approved, dismissed, approvalRate }, fetchStats: fetchStats || [], funnel, postedByDay });
 });
 
 // ─────────────────────────────────────────────────────────────
