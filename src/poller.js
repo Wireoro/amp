@@ -123,6 +123,8 @@ async function poll() {
       try {
         const replyText = await generateReply(tweet.text, handle, cfg);
         const tweetCreatedAt = tweet.createdAt ? new Date(tweet.createdAt).toISOString() : null;
+        // Extract first image URL if tweet has photos
+        const tweetImageUrl = tweet.photos?.[0]?.url || tweet.photos?.[0] || null;
         await supabase.from("replies").insert({
           user_id:          userId,
           tweet_id:         tweetId,
@@ -134,8 +136,9 @@ async function poll() {
           reply_text:       replyText,
           status:           "pending",
           tweet_created_at: tweetCreatedAt,
-          like_count:       tweet.likeCount  || 0,
-          view_count:       tweet.viewCount  || 0,
+          like_count:       tweet.likeCount   || 0,
+          view_count:       tweet.viewCount   || 0,
+          tweet_image_url:  tweetImageUrl,
         });
         await supabase.from("watchlist")
           .update({ last_tweet_id: tweetId }).eq("id", account.id);
