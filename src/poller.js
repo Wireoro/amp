@@ -80,7 +80,9 @@ async function poll() {
     console.log(`[Poll] Filter: ${candidates.length} candidates → top 50% = ${topHalf.length} drafts, ${discarded.length} discarded`);
 
     // ── Record daily stats (upsert + increment) ───────────────
-    if (allTweets.length > 0) {
+    // trulyNew = tweets not previously seen today (unique new tweets only)
+    const trulyNew = allTweets.filter(t => !seenIds.has(String(t.id)));
+    if (trulyNew.length > 0 || discarded.length > 0 || topHalf.length > 0) {
       const today = new Date().toISOString().split("T")[0];
       await supabase.from("daily_stats")
         .upsert({ user_id: userId, date: today, fetched: 0, filtered: 0, selected: 0 },
@@ -89,7 +91,7 @@ async function poll() {
         .select("fetched, filtered, selected").eq("user_id", userId).eq("date", today).single();
       if (stat) {
         await supabase.from("daily_stats").update({
-          fetched:  (stat.fetched  || 0) + allTweets.length,  // raw GetXAPI response
+          fetched:  (stat.fetched  || 0) + trulyNew.length,  // unique new tweets only
           filtered: (stat.filtered || 0) + discarded.length,
           selected: (stat.selected || 0) + topHalf.length,
         }).eq("user_id", userId).eq("date", today);
