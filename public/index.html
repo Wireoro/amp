@@ -304,9 +304,9 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 
     <div class="stats">
       <div class="stat-item"><div class="stat-num" id="statMonitored">5</div><div class="stat-label">Monitored</div></div>
-      <div class="stat-item"><div class="stat-num" id="statReplied">147</div><div class="stat-label">Replied</div></div>
-      <div class="stat-item"><div class="stat-num" id="statApproved">82%</div><div class="stat-label">Approval Rate</div></div>
-      <div class="stat-item"><div class="stat-num" id="statEngagement">+34%</div><div class="stat-label">Engagement</div></div>
+      <div class="stat-item"><div class="stat-num" id="statReplied">—</div><div class="stat-label">Replied</div></div>
+      <div class="stat-item"><div class="stat-num" id="statApproved">—</div><div class="stat-label">Approval Rate</div></div>
+      <div class="stat-item"><div class="stat-num" id="statEngagement">—</div><div class="stat-label">Pending</div></div>
     </div>
 
     <div class="search-bar">
@@ -706,6 +706,7 @@ function updateCounts() {
   var p = replies.filter(function(r){return r.status==="pending"}).length;
   var a = replies.filter(function(r){return r.status==="approved"}).length;
   var d = replies.filter(function(r){return r.status==="dismissed"}).length;
+  var q = replies.filter(function(r){return r.status==="queued"}).length;
   document.getElementById("countAll").textContent       = " ("+replies.length+")";
   document.getElementById("countPending").textContent   = " ("+p+")";
   document.getElementById("countApproved").textContent  = " ("+a+")";
@@ -713,8 +714,12 @@ function updateCounts() {
   document.getElementById("pendingCount").textContent   = p;
   document.getElementById("pendingBadge").textContent   = p;
   document.getElementById("statMonitored").textContent  = accounts.length;
+  document.getElementById("statReplied").textContent    = a;
+  document.getElementById("statEngagement").textContent = q > 0 ? q : p;
+  var engLabel = document.querySelector("#statEngagement + .stat-label");
+  if (engLabel) engLabel.textContent = q > 0 ? "In queue" : "Pending";
   var t = a + d;
-  if (t > 0) document.getElementById("statApproved").textContent = Math.round(a/t*100)+"%";
+  document.getElementById("statApproved").textContent = t > 0 ? Math.round(a/t*100)+"%" : "—";
 }
 
 function renderWatchlist() {
