@@ -61,7 +61,7 @@ async function postReply(replyText, tweetId, authToken) {
   const res = await xapi.post("/tweet/create", {
     auth_token: authToken,
     text: replyText,
-    reply: { in_reply_to_tweet_id: tweetId },
+    replyToTweetId: tweetId,
   });
   return res.data;
 }
