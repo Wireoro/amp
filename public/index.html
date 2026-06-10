@@ -664,7 +664,7 @@ function updateScoreBadges() {
     var created = el.getAttribute("data-created");
     var likes   = parseInt(el.getAttribute("data-likes") || "0", 10);
     var views   = parseInt(el.getAttribute("data-views") || "0", 10);
-    if (!created || (likes === 0 && views === 0)) { el.style.display = "none"; return; }
+    if (!created) return;
     var score = calcScore(created, likes, views);
     el.style.display = "block";
     el.textContent   = formatScore(score);
