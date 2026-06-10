@@ -3,7 +3,11 @@ const { fetchTweetsForAccounts, generateReply } = require("./clients");
 
 const COLORS = ["#d97064","#4a8fd4","#5a9a5a","#8b71c7","#d4943e","#c04040","#4aa88a","#d4703e"];
 
+let isPolling = false;
+
 async function poll() {
+  if (isPolling) { console.log("[Poll] Already running, skipping."); return; }
+  isPolling = true;
   console.log("[Poll] Starting sweep…");
 
   const { data: allAccounts } = await supabase
@@ -84,6 +88,7 @@ async function poll() {
   }
 
   console.log("[Poll] Sweep done.");
+  isPolling = false;
 }
 
 module.exports = { poll, COLORS };
