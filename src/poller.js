@@ -50,7 +50,45 @@ async function poll() {
     const newTweets = allTweets.filter(t => !seenIds.has(String(t.id)));
     console.log(`[Poll] User ${userId.slice(0,8)}… → ${newTweets.length} new tweet(s)`);
 
-    for (const tweet of newTweets) {
+    // ── Top 50% filter ────────────────────────────────────────
+    // Score = (views ÷ seconds_since_posted) + (likes × 5)
+    // Mark all as seen first, then only generate drafts for top half
+    function tweetScore(tweet) {
+      const seconds = Math.max(1, (Date.now() - new Date(tweet.createdAt || Date.now())) / 1000);
+      const velocity = (tweet.viewCount || 0) / seconds;
+      return velocity + ((tweet.likeCount || 0) * 5);
+    }
+
+    // Separate first-seen tweets (need bookmark) from candidates
+    const firstSeen = newTweets.filter(t => {
+      const handle = t.author?.userName?.toLowerCase();
+      const account = accountMap[handle];
+      return account && !account.last_tweet_id;
+    });
+    const candidates = newTweets.filter(t => {
+      const handle = t.author?.userName?.toLowerCase();
+      const account = accountMap[handle];
+      return account && account.last_tweet_id;
+    });
+
+    // Sort candidates by score and keep top 50%
+    candidates.sort((a, b) => tweetScore(b) - tweetScore(a));
+    const cutoff   = Math.ceil(candidates.length / 2);
+    const topHalf  = candidates.slice(0, cutoff);
+    const discarded = candidates.slice(cutoff);
+
+    console.log(`[Poll] Filter: ${candidates.length} candidates → top 50% = ${topHalf.length} drafts, ${discarded.length} discarded`);
+
+    // Mark discarded tweets as seen so they don't reappear
+    for (const tweet of discarded) {
+      await supabase.from("seen_tweets").insert({ user_id: userId, tweet_id: String(tweet.id) }).select();
+      const handle = tweet.author?.userName?.toLowerCase();
+      const account = accountMap[handle];
+      if (account) await supabase.from("watchlist").update({ last_tweet_id: String(tweet.id) }).eq("id", account.id);
+    }
+
+    // Process: first-seen bookmarks + top half drafts
+    for (const tweet of [...firstSeen, ...topHalf]) {
       const tweetId = String(tweet.id);
       const handle  = tweet.author?.userName?.toLowerCase();
       const account = accountMap[handle];
