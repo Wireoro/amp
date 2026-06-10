@@ -23,5 +23,3 @@ services:
         sync: false
       - key: APP_PASSWORD
         sync: false
-      - key: POLL_INTERVAL_MINUTES
-        value: "5"
