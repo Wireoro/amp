@@ -177,7 +177,7 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
   // Random gap: pick any value between base×0.70 and base×1.30
   function randomGapMs() {
     const min = baseMinutes * 0.70;
-    const max = baseMinutes * 1.30;
+    const max = baseMinutes * 2.00;
     const randomMinutes = min + Math.random() * (max - min);
     return Math.round(randomMinutes * 60 * 1000);
   }
