@@ -777,7 +777,16 @@ async function triggerPoll() {
   showToast("Checking for new tweets…");
   try {
     await api("/poll", { method:"POST" });
-    setTimeout(loadData, 5000);
+    // Poll takes time — refresh every 3s for 30s to catch new replies as they come in
+    var refreshCount = 0;
+    var refreshInterval = setInterval(function() {
+      loadData();
+      refreshCount++;
+      if (refreshCount >= 10) {
+        clearInterval(refreshInterval);
+        showToast("Done checking.", "success");
+      }
+    }, 3000);
   } catch(e) { showToast(e.message); }
 }
 
