@@ -407,6 +407,10 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
         <h4>Replies Posted to Twitter Per Day</h4>
         <div class="chart-wrap"><canvas id="chartPosted" role="img" aria-label="Replies posted to Twitter per day bar chart"></canvas></div>
       </div>
+      <div class="analytics-card">
+        <h4>Replies Sent by Account</h4>
+        <div id="repliesByAccount" style="margin-top:12px"></div>
+      </div>
     </div>
 
     <div class="analytics-grid" style="margin-top:16px">
@@ -1215,7 +1219,30 @@ async function initCharts() {
     }
   });
 
-  // ── Account bars: drafts generated ────────────────────────
+  // ── Replies sent by account ────────────────────────────────
+  var repliesByAccount = {};
+  (data.postedByDay ? [] : []).forEach(function(){});
+  // Build from accounts data — approved count per handle
+  accounts.slice().sort(function(a,b){ return b.approved - a.approved; }).forEach(function(a){
+    repliesByAccount[a.handle] = a.approved || 0;
+  });
+  var rbaEl = document.getElementById("repliesByAccount");
+  if (rbaEl) {
+    var sorted = accounts.slice()
+      .filter(function(a){ return a.approved > 0; })
+      .sort(function(a,b){ return b.approved - a.approved; });
+    var maxReplies = sorted.length ? sorted[0].approved : 1;
+    rbaEl.innerHTML = sorted.length ? sorted.map(function(a){
+      var pct = Math.round(a.approved / maxReplies * 100);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+        '<div style="font-size:11px;color:var(--ink);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@'+a.handle+'</div>' +
+        '<div style="flex:1;background:#f0ede6;border-radius:3px;height:6px">' +
+          '<div style="background:#3B6D11;border-radius:3px;height:6px;width:'+pct+'%"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;font-weight:500;color:#3B6D11;width:20px;text-align:right;flex-shrink:0">'+a.approved+'</div>' +
+      '</div>';
+    }).join("") : '<div style="font-size:12px;color:var(--ink-faint)">No replies sent yet</div>';
+  }
   var genEl = document.getElementById("accountGenerated");
   var maxGen = Math.max.apply(null, accounts.map(function(a){ return a.generated; })) || 1;
   genEl.innerHTML = accounts.map(function(a){
