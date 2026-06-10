@@ -1229,7 +1229,7 @@ async function initCharts() {
       .filter(function(a){ return a.approved > 0; })
       .sort(function(a,b){ return b.approved - a.approved; });
     var maxReplies = sorted.length ? sorted[0].approved : 1;
-    var totalReplies = sorted.reduce(function(s,a){ return s + a.approved; }, 0);
+    var totalReplies = summary.approved || 0;
     rbaEl.innerHTML = sorted.length ? 
       '<div style="font-size:11px;color:var(--ink-faint);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' +
         'Total: <span style="font-weight:600;color:#3B6D11;font-size:13px">'+totalReplies+'</span> replies sent' +
