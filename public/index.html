@@ -1125,17 +1125,14 @@ async function initCharts() {
     type: "bar",
     data: {
       labels: fetchLabels,
-      datasets: [
-        { label:"Filtered",  data: filteredVals, backgroundColor:"rgba(192,57,43,0.5)",  borderRadius:2 },
-        { label:"Selected",  data: selectedVals, backgroundColor:"rgba(186,117,23,0.7)", borderRadius:2 },
-      ]
+      datasets: [{ label:"New tweets", data: fetchedVals, backgroundColor:"rgba(74,111,165,0.7)", borderRadius:3 }]
     },
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ position:"bottom", labels:{ font:{ size:10 }, boxWidth:10 } } },
+      plugins:{ legend:{ display:false } },
       scales:{
-        x:{ stacked:true, grid:{ display:false }, ticks:tick },
-        y:{ stacked:true, grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
       }
     }
   });
@@ -1232,16 +1229,21 @@ async function initCharts() {
       .filter(function(a){ return a.approved > 0; })
       .sort(function(a,b){ return b.approved - a.approved; });
     var maxReplies = sorted.length ? sorted[0].approved : 1;
-    rbaEl.innerHTML = sorted.length ? sorted.map(function(a){
-      var pct = Math.round(a.approved / maxReplies * 100);
-      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
-        '<div style="font-size:11px;color:var(--ink);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@'+a.handle+'</div>' +
-        '<div style="flex:1;background:#f0ede6;border-radius:3px;height:6px">' +
-          '<div style="background:#3B6D11;border-radius:3px;height:6px;width:'+pct+'%"></div>' +
-        '</div>' +
-        '<div style="font-size:11px;font-weight:500;color:#3B6D11;width:20px;text-align:right;flex-shrink:0">'+a.approved+'</div>' +
-      '</div>';
-    }).join("") : '<div style="font-size:12px;color:var(--ink-faint)">No replies sent yet</div>';
+    var totalReplies = sorted.reduce(function(s,a){ return s + a.approved; }, 0);
+    rbaEl.innerHTML = sorted.length ? 
+      '<div style="font-size:11px;color:var(--ink-faint);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' +
+        'Total: <span style="font-weight:600;color:#3B6D11;font-size:13px">'+totalReplies+'</span> replies sent' +
+      '</div>' +
+      sorted.map(function(a){
+        var pct = Math.round(a.approved / maxReplies * 100);
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<div style="font-size:11px;color:var(--ink);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@'+a.handle+'</div>' +
+          '<div style="flex:1;background:#f0ede6;border-radius:3px;height:6px">' +
+            '<div style="background:#3B6D11;border-radius:3px;height:6px;width:'+pct+'%"></div>' +
+          '</div>' +
+          '<div style="font-size:11px;font-weight:500;color:#3B6D11;width:20px;text-align:right;flex-shrink:0">'+a.approved+'</div>' +
+        '</div>';
+      }).join("") : '<div style="font-size:12px;color:var(--ink-faint)">No replies sent yet</div>';
   }
   var genEl = document.getElementById("accountGenerated");
   var maxGen = Math.max.apply(null, accounts.map(function(a){ return a.generated; })) || 1;
