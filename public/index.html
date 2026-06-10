@@ -781,9 +781,11 @@ function isUserEditing() {
 }
 
 function safeRenderCards() {
-  if (isUserEditing()) return; // don't wipe edits in progress
+  if (isUserEditing()) return;
   renderCards();
 }
+
+function renderCards() {
   var list = document.getElementById("cardList");
   var filtered = replies.filter(function(r) {
     if (currentFilter !== "all" && r.status !== currentFilter) return false;
