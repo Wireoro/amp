@@ -74,9 +74,8 @@ Brand voice:
 ${settings.brand_voice}
 
 Rules:
-- Tone: ${settings.tone}
-- Maximum length: ${settings.max_length} characters — hard limit, never exceed it
-- ${settings.include_question ? "End with a short genuine question to drive engagement." : "Do not add a question."}
+- Length: Write exactly ${settings.max_length || "3 sentences"} — no more, no less
+- ${settings.include_question ? "End with a short genuine question to drive engagement." : "Do not end with a question."}
 - Never include URLs or hashtags
 - Sound like a real thoughtful person, not a bot
 - Output ONLY the reply text — no quotes, no preamble, nothing else`;

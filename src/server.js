@@ -195,7 +195,7 @@ app.get("/api/settings", async (req, res) => {
 
 app.put("/api/settings", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
-  const allowed = ["brand_voice","tone","max_length","include_question"];
+  const allowed = ["brand_voice","max_length","include_question"];
   const patch = { updated_at: new Date().toISOString() };
   allowed.forEach(k => { if (req.body[k] !== undefined) patch[k] = req.body[k]; });
   const { data, error } = await supabase.from("settings")

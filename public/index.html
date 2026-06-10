@@ -425,12 +425,14 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     <div class="settings-section">
       <div class="settings-title">Reply Preferences</div>
       <div class="settings-row">
-        <div><div class="settings-label">Default Tone</div><div class="settings-desc">How AI-generated replies should feel</div></div>
-        <select class="settings-select"><option selected>Conversational</option><option>Professional</option><option>Witty</option><option>Technical</option><option>Casual</option></select>
-      </div>
-      <div class="settings-row">
-        <div><div class="settings-label">Max Reply Length</div><div class="settings-desc">Character limit for generated replies</div></div>
-        <select class="settings-select"><option>140 characters</option><option selected>280 characters</option><option>No limit</option></select>
+        <div><div class="settings-label">Reply Length</div><div class="settings-desc">How long Claude should make each reply</div></div>
+        <select class="settings-select" id="sentenceSelect">
+          <option>1 sentence</option>
+          <option>2 sentences</option>
+          <option selected>3 sentences</option>
+          <option>4 sentences</option>
+          <option>5 sentences</option>
+        </select>
       </div>
       <div class="settings-row">
         <div><div class="settings-label">Include Questions</div><div class="settings-desc">End replies with a question to boost engagement</div></div>
@@ -609,11 +611,9 @@ function renderWatchlist() {
 function loadSettings() {
   api("/settings").then(function(s) {
     var ta = document.querySelector(".settings-textarea");
-    var sel0 = document.querySelectorAll(".settings-select")[0];
-    var sel1 = document.querySelectorAll(".settings-select")[1];
-    if (ta)   ta.value = s.brand_voice || "";
-    if (sel0) sel0.value = s.tone || "Conversational";
-    if (sel1) sel1.value = (s.max_length === 140 ? "140 characters" : "280 characters");
+    var sel = document.getElementById("sentenceSelect");
+    if (ta)  ta.value = s.brand_voice || "";
+    if (sel) sel.value = s.max_length || "3 sentences";
     var toggles = document.querySelectorAll(".toggle");
     if (toggles[0]) toggles[0].classList.toggle("on", !!s.include_question);
   }).catch(function(){});
@@ -758,16 +758,14 @@ async function removeAccount(id) {
 }
 
 async function saveSettings() {
-  var ta   = document.querySelector(".settings-textarea");
-  var sel0 = document.querySelectorAll(".settings-select")[0];
-  var sel1 = document.querySelectorAll(".settings-select")[1];
-  var tog  = document.querySelectorAll(".toggle")[0];
+  var ta  = document.querySelector(".settings-textarea");
+  var sel = document.getElementById("sentenceSelect");
+  var tog = document.querySelectorAll(".toggle")[0];
   try {
     await api("/settings", { method:"PUT", body: JSON.stringify({
-      brand_voice:      ta   ? ta.value : undefined,
-      tone:             sel0 ? sel0.value : undefined,
-      max_length:       sel1 && sel1.value.includes("140") ? 140 : 280,
-      include_question: tog  ? tog.classList.contains("on") : true,
+      brand_voice:      ta  ? ta.value : undefined,
+      max_length:       sel ? sel.value : "3 sentences",
+      include_question: tog ? tog.classList.contains("on") : true,
     })});
     showToast("Settings saved", "success");
   } catch(e) { showToast("Failed: " + e.message); }
