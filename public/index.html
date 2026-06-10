@@ -88,7 +88,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 /* ===== REPLY CARDS ===== */
 .card {
   background: #fff; border: 1px solid var(--border); padding: 24px;
-  margin-bottom: 14px; transition: all 0.3s ease; position: relative; overflow: hidden;
+  margin-bottom: 14px; transition: all 0.3s ease; position: relative;
 }
 .card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
 .card.approved { animation: approveSlide 0.5s ease forwards; }
@@ -120,6 +120,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   font-size: 13.5px; line-height: 1.65; color: var(--ink-light); margin-bottom: 18px;
   padding: 10px 14px; background: var(--cream); border-radius: 4px;
   border: 1px solid transparent; cursor: text; transition: border-color 0.2s;
+  user-select: text; -webkit-user-select: text; pointer-events: all;
 }
 .reply-text:hover { border-color: var(--border); }
 .reply-text:focus { border-color: var(--blue); outline: none; background: #fff; }
