@@ -81,7 +81,7 @@ Rules:
 - Output ONLY the reply text — no quotes, no preamble, nothing else`;
 
   const msg = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-4-6",
     max_tokens: 300,
     system,
     messages: [
