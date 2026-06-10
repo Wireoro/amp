@@ -387,7 +387,7 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     <!-- Summary cards -->
     <div class="stats" style="border-bottom:none;padding-bottom:0;margin-bottom:16px">
       <div class="stat-item"><div class="metric-big" id="anTotal">—</div><div class="metric-change">Generated</div></div>
-      <div class="stat-item"><div class="metric-big" id="anApproved">—</div><div class="metric-change">Sent</div></div>
+      <div class="stat-item"><div class="metric-big" id="anApproved">—</div><div class="metric-change">Posted to X</div></div>
       <div class="stat-item"><div class="metric-big" id="anDismissed">—</div><div class="metric-change">Dismissed</div></div>
       <div class="stat-item"><div class="metric-big" id="anRate">—</div><div class="metric-change">Approval rate</div></div>
     </div>
@@ -404,23 +404,27 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
         <div class="chart-wrap"><canvas id="chartFetched" role="img" aria-label="Tweets fetched per day bar chart"></canvas></div>
       </div>
       <div class="analytics-card">
-        <h4>Replies Generated Per Day</h4>
-        <div class="chart-wrap"><canvas id="chartReplies" role="img" aria-label="Replies generated per day bar chart"></canvas></div>
+        <h4>Replies Posted to Twitter Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartPosted" role="img" aria-label="Replies posted to Twitter per day bar chart"></canvas></div>
       </div>
     </div>
 
     <div class="analytics-grid" style="margin-top:16px">
+      <div class="analytics-card">
+        <h4>Replies Generated Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartReplies" role="img" aria-label="Replies generated per day bar chart"></canvas></div>
+      </div>
       <div class="analytics-card">
         <h4>Approval Rate Over Time</h4>
         <div class="chart-wrap"><canvas id="chartApproval" role="img" aria-label="Approval rate over time line chart"></canvas></div>
       </div>
+    </div>
+
+    <div class="analytics-grid" style="margin-top:16px">
       <div class="analytics-card">
         <h4>Top Accounts by Drafts Generated</h4>
         <div id="accountGenerated" style="margin-top:12px"></div>
       </div>
-    </div>
-
-    <div class="analytics-grid" style="margin-top:16px">
       <div class="analytics-card">
         <h4>Approval Rate by Account</h4>
         <div id="accountApproval" style="margin-top:12px"></div>
@@ -704,7 +708,15 @@ function loadUser() {
   var d=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
   document.getElementById("todayDate").textContent = d[now.getDay()]+", "+m[now.getMonth()]+" "+now.getDate()+", "+now.getFullYear();
   loadData();
-  setInterval(loadData, 60000);
+  setInterval(async function() {
+    if (isUserEditing()) return; // don't refresh while user is editing
+    var results = await Promise.all([api("/accounts"), api("/replies")]).catch(function(){ return null; });
+    if (!results) return;
+    accounts = results[0];
+    replies  = results[1];
+    renderSideAccounts(); safeRenderCards(); updateCounts(); renderWatchlist();
+    loadQueue();
+  }, 60000);
 })();
 
 // ─── Engagement Score Badge ───────────────────────────────────
@@ -764,7 +776,14 @@ function renderSideAccounts() {
   }).join("");
 }
 
-function renderCards() {
+function isUserEditing() {
+  return !!document.querySelector(".reply-text[contenteditable='true']:focus");
+}
+
+function safeRenderCards() {
+  if (isUserEditing()) return; // don't wipe edits in progress
+  renderCards();
+}
   var list = document.getElementById("cardList");
   var filtered = replies.filter(function(r) {
     if (currentFilter !== "all" && r.status !== currentFilter) return false;
@@ -1008,7 +1027,7 @@ async function triggerPoll() {
     // Poll takes time — refresh every 3s for 30s to catch new replies as they come in
     var refreshCount = 0;
     var refreshInterval = setInterval(function() {
-      loadData();
+      if (!isUserEditing()) loadData();
       refreshCount++;
       if (refreshCount >= 10) {
         clearInterval(refreshInterval);
@@ -1091,8 +1110,8 @@ async function initCharts() {
   var tick = { font:{ family:"-apple-system,sans-serif", size:10 }, color:"#bbb" };
 
   // ── Chart: Fetched per day ─────────────────────────────────
-  var fetchLabels = fetchStats.map(function(d){ return d.date.slice(5); });
-  var fetchedVals = fetchStats.map(function(d){ return d.fetched; });
+  var fetchLabels  = fetchStats.map(function(d){ return d.date.slice(5); });
+  var fetchedVals  = fetchStats.map(function(d){ return d.fetched; });
   var filteredVals = fetchStats.map(function(d){ return d.filtered; });
   var selectedVals = fetchStats.map(function(d){ return d.selected; });
   if (chartFetchedInst) chartFetchedInst.destroy();
@@ -1111,6 +1130,30 @@ async function initCharts() {
       scales:{
         x:{ stacked:true, grid:{ display:false }, ticks:tick },
         y:{ stacked:true, grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Chart: Replies posted to Twitter per day ───────────────
+  var postedVals = daily.map(function(d){ return d.posted || d.approved || 0; });
+  if (window.chartPostedInst) window.chartPostedInst.destroy();
+  window.chartPostedInst = new Chart(document.getElementById("chartPosted"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets:[{
+        label:"Replies posted",
+        data: postedVals,
+        backgroundColor:"rgba(59,109,17,0.75)",
+        borderRadius:3,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true, ticks:{ ...tick, stepSize:1 } }
       }
     }
   });
