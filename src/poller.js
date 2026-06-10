@@ -80,18 +80,16 @@ async function poll() {
     console.log(`[Poll] Filter: ${candidates.length} candidates → top 50% = ${topHalf.length} drafts, ${discarded.length} discarded`);
 
     // ── Record daily stats (upsert + increment) ───────────────
-    if (candidates.length > 0) {
+    if (allTweets.length > 0) {
       const today = new Date().toISOString().split("T")[0];
-      // Insert row for today if not exists
       await supabase.from("daily_stats")
         .upsert({ user_id: userId, date: today, fetched: 0, filtered: 0, selected: 0 },
           { onConflict: "user_id,date", ignoreDuplicates: true });
-      // Fetch current and add to it
       const { data: stat } = await supabase.from("daily_stats")
         .select("fetched, filtered, selected").eq("user_id", userId).eq("date", today).single();
       if (stat) {
         await supabase.from("daily_stats").update({
-          fetched:  (stat.fetched  || 0) + candidates.length,
+          fetched:  (stat.fetched  || 0) + allTweets.length,  // raw GetXAPI response
           filtered: (stat.filtered || 0) + discarded.length,
           selected: (stat.selected || 0) + topHalf.length,
         }).eq("user_id", userId).eq("date", today);
