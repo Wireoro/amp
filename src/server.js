@@ -42,7 +42,7 @@ function shouldPollNow(min) {
   if (totalMins < start15)  return false;                  // 00:00–11:00 → silent
   if (totalMins >= end)     return false;                  // 23:30–00:00 → silent
   if (totalMins < start5)   return min % 15 === 0;         // 11:00–14:00 → every 15 min
-  return min % 5 === 0;                                    // 14:00–23:30 → every 5 min
+  return min % 10 === 0;                                   // 14:00–23:30 → every 10 min
 }
 
 // Single cron every minute — decides whether to actually poll
@@ -520,5 +520,5 @@ app.get("/api/analytics", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  Draftillery → http://localhost:${PORT}`);
-  console.log(`  Paris schedule: silent 00-11, 15min 11-14, 5min 14-23:30\n`);
+  console.log(`  Paris schedule: silent 00-11, 15min 11-14, 10min 14-23:30\n`);
 });
