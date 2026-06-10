@@ -213,23 +213,15 @@ app.put("/api/settings/twitter", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);
   const { x_auth_token, x_handle } = req.body;
   if (!x_auth_token) return err(res, "auth_token required", 400);
+  if (!x_handle) return err(res, "handle required", 400);
 
-  // Verify the token works by fetching the user's own profile
-  try {
-    const verify = await xapi.get("/user/info", {
-      params: { userName: x_handle || "me", auth_token: x_auth_token }
-    });
-    const handle = verify.data?.userName || x_handle || "";
-    const name   = verify.data?.name || "";
+  const handle = x_handle.replace(/^@/, "").toLowerCase();
 
-    const { data, error } = await supabase.from("settings")
-      .update({ x_auth_token, x_handle: handle, updated_at: new Date().toISOString() })
-      .eq("user_id", req.user.id).select().single();
-    if (error) return err(res, error.message);
-    ok(res, { handle, name });
-  } catch(e) {
-    return err(res, "Could not verify token with Twitter. Please check it and try again.", 400);
-  }
+  const { data, error } = await supabase.from("settings")
+    .update({ x_auth_token, x_handle: handle, updated_at: new Date().toISOString() })
+    .eq("user_id", req.user.id).select().single();
+  if (error) return err(res, error.message);
+  ok(res, { handle });
 });
 
 // Get connection status (never return the actual token to browser)
