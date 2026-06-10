@@ -291,5 +291,5 @@ app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n  Draftillery → http://localhost:${PORT}`);
-  console.log(`  Polling every ${INTERVAL} min\n`);
+  console.log(`  Paris schedule: silent 00-11, 15min 11-14, 5min 14-23:30\n`);
 });
