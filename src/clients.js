@@ -19,7 +19,7 @@ function sinceYesterday() {
 
 // ── Fetch tweets from the last 24h for a batch of handles ─────
 async function fetchTweetsForAccounts(handles) {
-  const CHUNK_SIZE = 30;
+  const CHUNK_SIZE = 20;
   const allTweets = [];
   const since = sinceYesterday();
 
