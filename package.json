@@ -1,7 +1,7 @@
 {
-  "name": "twitter-amp",
+  "name": "draftillery",
   "version": "1.0.0",
-  "description": "AI-powered Twitter reply outreach — Twitter AMP",
+  "description": "AI-powered Twitter reply outreach — Draftillery",
   "main": "src/server.js",
   "engines": {
     "node": ">=18.0.0"

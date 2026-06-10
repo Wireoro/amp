@@ -1,4 +1,4 @@
-# Twitter AMP
+# Draftillery
 
 AI-powered Twitter/X reply outreach dashboard.
 Watches accounts → fetches tweets via GetXAPI → Claude generates drafts → you approve → posts to X.

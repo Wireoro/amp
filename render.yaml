@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: twitter-amp
+    name: draftillery
     runtime: node
     plan: starter
     buildCommand: npm install
