@@ -128,9 +128,12 @@ app.patch("/api/replies/:id/regenerate", async (req, res) => {
   const { data: settings } = await supabase.from("settings")
     .select("*").eq("user_id", req.user.id).single();
   try {
-    const newText = await generateReply(reply.tweet_text, reply.account_handle, settings);
+    const [newA, newB] = await Promise.all([
+      generateReply(reply.tweet_text, reply.account_handle, settings, "A"),
+      generateReply(reply.tweet_text, reply.account_handle, settings, "B"),
+    ]);
     const { data: updated, error: upErr } = await supabase.from("replies")
-      .update({ reply_text: newText }).eq("id", id).select().single();
+      .update({ reply_text: newA, reply_text_b: newB }).eq("id", id).select().single();
     if (upErr) return err(res, upErr.message);
     ok(res, { reply: updated });
   } catch(e) { err(res, e.message); }

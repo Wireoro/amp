@@ -111,6 +111,16 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .tweet-text { font-family: var(--serif); font-size: 15px; line-height: 1.65; color: #4a4a4a; margin-bottom: 18px; font-style: italic; }
 .reply-section { padding-top: 16px; border-top: 1px solid var(--border); }
 .reply-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; color: var(--blue); margin-bottom: 8px; font-weight: 600; }
+.options-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; color: var(--blue); margin-bottom: 10px; font-weight: 600; }
+.option-card { border: 1.5px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--cream); }
+.option-card:hover { border-color: #aac0e0; }
+.option-card.active { border-color: var(--blue); background: #f0f5fc; }
+.option-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.option-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; transition: all 0.15s; }
+.option-radio.active { border-color: var(--blue); background: var(--blue); box-shadow: inset 0 0 0 3px #fff; }
+.option-tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; padding: 2px 8px; border-radius: 20px; }
+.option-tag-a { background: #e6eef9; color: #2d5fa0; }
+.option-tag-b { background: #ede6f9; color: #5a2da0; }
 .reply-text {
   font-size: 13.5px; line-height: 1.65; color: var(--ink-light); margin-bottom: 18px;
   padding: 10px 14px; background: var(--cream); border-radius: 4px;
@@ -571,8 +581,20 @@ function renderCards() {
       '<div class="tweet-head"><a href="https://x.com/'+r.account_handle+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none"><div class="avatar" style="background:'+r.color+'">'+r.initials+'</div>' +
       '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a></div>' +
       '<div class="tweet-text">\u201C'+r.tweet_text+'\u201D</div>' +
-      '<div class="reply-section"><div class="reply-label">Suggested Reply</div>' +
-      '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" title="'+(p?'Click to edit reply':'')+'" style="'+(p?'cursor:text;border-color:var(--border-secondary)':'')+'">'+r.reply_text+'</div>' +
+      '<div class="reply-section">' +
+      (r.reply_text_b
+        ? '<div class="reply-label">Suggested Replies</div>' +
+          '<div class="option-card active" id="opt-a-'+r.id+'" onclick="selectOption('+r.id+',\'a\')">' +
+            '<div class="option-header"><div class="option-radio active" id="radio-a-'+r.id+'"></div><span class="option-tag option-tag-a">Option A</span></div>' +
+            '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" data-opt="a">'+r.reply_text+'</div>' +
+          '</div>' +
+          '<div class="option-card" id="opt-b-'+r.id+'" onclick="selectOption('+r.id+',\'b\')">' +
+            '<div class="option-header"><div class="option-radio" id="radio-b-'+r.id+'"></div><span class="option-tag option-tag-b">Option B</span></div>' +
+            '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" data-opt="b">'+r.reply_text_b+'</div>' +
+          '</div>'
+        : '<div class="reply-label">Suggested Reply</div>' +
+          '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" data-opt="a">'+r.reply_text+'</div>'
+      ) +
       '<div class="card-actions">' +
         (p ? '<button class="btn-approve" onclick="approveReply('+r.id+')">Approve &amp; Send</button>' +
              '<button class="btn-dismiss" onclick="dismissReply('+r.id+')">Dismiss</button>' +
@@ -669,10 +691,27 @@ function showTwitterMsg(text, type) {
   el.style.color = type === "success" ? "var(--green)" : "var(--red)";
 }
 
+// ─── Option A/B selection ────────────────────────────────────
+var selectedOptions = {}; // { replyId: 'a' or 'b' }
+
+function selectOption(id, opt) {
+  selectedOptions[id] = opt;
+  var cardA = document.getElementById("opt-a-"+id);
+  var cardB = document.getElementById("opt-b-"+id);
+  var radioA = document.getElementById("radio-a-"+id);
+  var radioB = document.getElementById("radio-b-"+id);
+  if (cardA)  cardA.classList.toggle("active",  opt==="a");
+  if (cardB)  cardB.classList.toggle("active",  opt==="b");
+  if (radioA) radioA.classList.toggle("active", opt==="a");
+  if (radioB) radioB.classList.toggle("active", opt==="b");
+}
+
 // ─── Actions ──────────────────────────────────────────────────
 async function approveReply(id) {
   var card = document.querySelector('.card[data-id="'+id+'"]');
-  var el = card ? card.querySelector(".reply-text") : null;
+  // Get the selected option (default A)
+  var opt = selectedOptions[id] || "a";
+  var el = card ? card.querySelector('.reply-text[data-opt="'+opt+'"]') : null;
   var text = el ? el.textContent.trim() : null;
   card && card.classList.add("approved");
   try {
@@ -704,16 +743,21 @@ async function dismissReply(id) {
 
 async function regenReply(id) {
   var card = document.querySelector('.card[data-id="'+id+'"]');
-  var el = card ? card.querySelector(".reply-text") : null;
-  if (el) el.style.opacity = "0.4";
+  var els = card ? card.querySelectorAll(".reply-text") : [];
+  els.forEach(function(el){ el.style.opacity = "0.4"; });
   try {
     var data = await api("/replies/"+id+"/regenerate", { method:"PATCH" });
     var r = replies.find(function(x){return x.id===id});
-    if (r) r.reply_text = data.reply.reply_text;
-    if (el) { el.textContent = data.reply.reply_text; el.style.opacity = "1"; }
-    showToast("New draft ready", "success");
+    if (r) { r.reply_text = data.reply.reply_text; r.reply_text_b = data.reply.reply_text_b; }
+    var elA = card ? card.querySelector('.reply-text[data-opt="a"]') : null;
+    var elB = card ? card.querySelector('.reply-text[data-opt="b"]') : null;
+    if (elA) { elA.textContent = data.reply.reply_text;   elA.style.opacity = "1"; }
+    if (elB) { elB.textContent = data.reply.reply_text_b; elB.style.opacity = "1"; }
+    // Reset selection to A
+    selectOption(id, "a");
+    showToast("New options ready", "success");
   } catch(e) {
-    if (el) el.style.opacity = "1";
+    els.forEach(function(el){ el.style.opacity = "1"; });
     showToast("Failed: " + e.message);
   }
 }
