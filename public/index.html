@@ -570,7 +570,7 @@ function renderCards() {
       '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a></div>' +
       '<div class="tweet-text">\u201C'+r.tweet_text+'\u201D</div>' +
       '<div class="reply-section"><div class="reply-label">Suggested Reply</div>' +
-      '<div class="reply-text" contenteditable="'+p+'" data-id="'+r.id+'">'+r.reply_text+'</div>' +
+      '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" title="'+(p?'Click to edit reply':'')+'" style="'+(p?'cursor:text;border-color:var(--border-secondary)':'')+'">'+r.reply_text+'</div>' +
       '<div class="card-actions">' +
         (p ? '<button class="btn-approve" onclick="approveReply('+r.id+')">Approve &amp; Send</button>' +
              '<button class="btn-dismiss" onclick="dismissReply('+r.id+')">Dismiss</button>' +
