@@ -343,33 +343,37 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   <div class="page" id="page-analytics">
     <div class="page-header">
       <div class="page-greeting">Analytics</div>
-      <div class="page-date">Performance overview &middot; Last 7 days</div>
+      <div class="page-date">Last 30 days — real data</div>
     </div>
 
+    <!-- Summary cards -->
     <div class="stats" style="border-bottom:none;padding-bottom:0;margin-bottom:20px">
-      <div class="stat-item"><div class="metric-big">147</div><div class="metric-change up">&uarr; 12% vs. last week</div></div>
-      <div class="stat-item"><div class="metric-big">82%</div><div class="metric-change up">&uarr; 4% approval rate</div></div>
-      <div class="stat-item"><div class="metric-big">2.4K</div><div class="metric-change up">&uarr; 34% impressions</div></div>
+      <div class="stat-item"><div class="metric-big" id="anTotal">—</div><div class="metric-change">Generated</div></div>
+      <div class="stat-item"><div class="metric-big" id="anApproved">—</div><div class="metric-change">Sent</div></div>
+      <div class="stat-item"><div class="metric-big" id="anDismissed">—</div><div class="metric-change">Dismissed</div></div>
+      <div class="stat-item"><div class="metric-big" id="anRate">—</div><div class="metric-change">Approval rate</div></div>
     </div>
 
     <div class="analytics-grid">
       <div class="analytics-card">
-        <h4>Replies Sent Per Day</h4>
-        <div class="chart-wrap"><canvas id="chartReplies"></canvas></div>
+        <h4>Replies Generated Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartReplies" role="img" aria-label="Replies generated per day bar chart"></canvas></div>
       </div>
       <div class="analytics-card">
-        <h4>Approval Rate Trend</h4>
-        <div class="chart-wrap"><canvas id="chartApproval"></canvas></div>
+        <h4>Approval Rate Over Time</h4>
+        <div class="chart-wrap"><canvas id="chartApproval" role="img" aria-label="Approval rate over time line chart"></canvas></div>
       </div>
     </div>
 
-    <div class="activity-list">
-      <div class="activity-label">Recent Activity</div>
-      <div class="activity-item"><div class="activity-dot approved"></div><div class="activity-text">Approved reply to <strong>@naval</strong> about thinking vs. doing</div><div class="activity-time">2h ago</div></div>
-      <div class="activity-item"><div class="activity-dot dismissed"></div><div class="activity-text">Dismissed reply to <strong>@jason</strong> — off-brand tone</div><div class="activity-time">3h ago</div></div>
-      <div class="activity-item"><div class="activity-dot edited"></div><div class="activity-text">Edited and approved reply to <strong>@lennysan</strong></div><div class="activity-time">5h ago</div></div>
-      <div class="activity-item"><div class="activity-dot approved"></div><div class="activity-text">Approved reply to <strong>@paulg</strong> about startup speed</div><div class="activity-time">6h ago</div></div>
-      <div class="activity-item"><div class="activity-dot approved"></div><div class="activity-text">Approved reply to <strong>@sarablakely</strong> about timing</div><div class="activity-time">Yesterday</div></div>
+    <div class="analytics-grid" style="margin-top:16px">
+      <div class="analytics-card">
+        <h4>Top Accounts by Drafts Generated</h4>
+        <div id="accountGenerated" style="margin-top:12px"></div>
+      </div>
+      <div class="analytics-card">
+        <h4>Approval Rate by Account</h4>
+        <div id="accountApproval" style="margin-top:12px"></div>
+      </div>
     </div>
   </div>
 
@@ -794,7 +798,7 @@ function navigate(page) {
   document.getElementById("page-"+page).classList.add("active");
   document.querySelector('.nav-item[data-page="'+page+'"]').classList.add("active");
   document.querySelector(".main").scrollTop = 0;
-  if (page==="analytics") initCharts();
+  if (page==="analytics") { chartsInit = false; initCharts(); }
   if (page==="settings") loadSettings();
 }
 
@@ -818,12 +822,112 @@ document.addEventListener("keydown", function(e) {
 
 // ─── Charts ───────────────────────────────────────────────────
 var chartsInit = false;
-function initCharts() {
-  if (chartsInit) return; chartsInit = true;
-  var days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  var tick = {font:{family:"-apple-system,sans-serif",size:10},color:"#bbb"};
-  new Chart(document.getElementById("chartReplies"),{type:"bar",data:{labels:days,datasets:[{data:[8,12,6,15,11,9,14],backgroundColor:"rgba(74,111,165,0.7)",borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:tick},y:{grid:{color:"#f0ede6"},ticks:tick,beginAtZero:true}}}});
-  new Chart(document.getElementById("chartApproval"),{type:"line",data:{labels:days,datasets:[{data:[78,82,75,88,85,80,82],borderColor:"#5a9a5a",backgroundColor:"rgba(90,154,90,0.08)",fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:"#5a9a5a"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:tick},y:{grid:{color:"#f0ede6"},ticks:tick,min:60,max:100}}}});
+var chartRepliesInst = null;
+var chartApprovalInst = null;
+
+async function initCharts() {
+  chartsInit = true;
+  var data = await api("/analytics");
+  var daily    = data.daily    || [];
+  var accounts = data.accounts || [];
+  var summary  = data.summary  || {};
+
+  // ── Summary cards ──────────────────────────────────────────
+  document.getElementById("anTotal").textContent     = summary.total     || 0;
+  document.getElementById("anApproved").textContent  = summary.approved  || 0;
+  document.getElementById("anDismissed").textContent = summary.dismissed || 0;
+  document.getElementById("anRate").textContent      = (summary.approvalRate || 0) + "%";
+
+  var labels   = daily.map(function(d){ return d.date.slice(5); }); // MM-DD
+  var generated = daily.map(function(d){ return d.generated; });
+  var approved  = daily.map(function(d){ return d.approved; });
+  var dismissed = daily.map(function(d){ return d.dismissed; });
+  var rates     = daily.map(function(d){
+    var acted = d.approved + d.dismissed;
+    return acted > 0 ? Math.round(d.approved / acted * 100) : null;
+  });
+
+  var tick = { font:{ family:"-apple-system,sans-serif", size:10 }, color:"#bbb" };
+
+  // ── Chart 1: Generated per day (stacked) ──────────────────
+  if (chartRepliesInst) chartRepliesInst.destroy();
+  chartRepliesInst = new Chart(document.getElementById("chartReplies"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [
+        { label:"Approved",  data: approved,  backgroundColor:"rgba(74,143,100,0.75)", borderRadius:3 },
+        { label:"Dismissed", data: dismissed, backgroundColor:"rgba(200,80,80,0.5)",   borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"bottom", labels:{ font:{ size:10 }, boxWidth:10 } } },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:tick },
+        y:{ stacked:true, grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Chart 2: Approval rate over time ──────────────────────
+  if (chartApprovalInst) chartApprovalInst.destroy();
+  chartApprovalInst = new Chart(document.getElementById("chartApproval"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets:[{
+        label:"Approval %", data: rates,
+        borderColor:"#5a9a5a", backgroundColor:"rgba(90,154,90,0.08)",
+        fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:"#5a9a5a",
+        spanGaps:true
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:{ ...tick, callback: function(v){ return v+"%"; } }, min:0, max:100 }
+      }
+    }
+  });
+
+  // ── Account bars: drafts generated ────────────────────────
+  var genEl = document.getElementById("accountGenerated");
+  var maxGen = Math.max.apply(null, accounts.map(function(a){ return a.generated; })) || 1;
+  genEl.innerHTML = accounts.map(function(a){
+    var pct = Math.round(a.generated / maxGen * 100);
+    return '<div style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">' +
+        '<span style="color:var(--ink)">@'+a.handle+'</span>' +
+        '<span style="color:var(--ink-light);font-weight:600">'+a.generated+'</span>' +
+      '</div>' +
+      '<div style="background:#f0ede6;border-radius:3px;height:6px">' +
+        '<div style="background:#4a6fa5;border-radius:3px;height:6px;width:'+pct+'%"></div>' +
+      '</div></div>';
+  }).join("") || '<div style="font-size:12px;color:var(--ink-faint)">No data yet</div>';
+
+  // ── Account bars: approval rate ────────────────────────────
+  var aprEl = document.getElementById("accountApproval");
+  var sorted = accounts.slice().sort(function(a,b){
+    var ra = a.approved+a.dismissed > 0 ? a.approved/(a.approved+a.dismissed) : 0;
+    var rb = b.approved+b.dismissed > 0 ? b.approved/(b.approved+b.dismissed) : 0;
+    return rb - ra;
+  });
+  aprEl.innerHTML = sorted.map(function(a){
+    var acted = a.approved + a.dismissed;
+    var rate = acted > 0 ? Math.round(a.approved / acted * 100) : 0;
+    var color = rate >= 70 ? "#5a9a5a" : rate >= 40 ? "#d4943e" : "#c04040";
+    return '<div style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">' +
+        '<span style="color:var(--ink)">@'+a.handle+'</span>' +
+        '<span style="color:'+color+';font-weight:600">'+rate+'%</span>' +
+      '</div>' +
+      '<div style="background:#f0ede6;border-radius:3px;height:6px">' +
+        '<div style="background:'+color+';border-radius:3px;height:6px;width:'+rate+'%"></div>' +
+      '</div></div>';
+  }).join("") || '<div style="font-size:12px;color:var(--ink-faint)">No data yet</div>';
 }
 
 // ─── Load data from server ────────────────────────────────────

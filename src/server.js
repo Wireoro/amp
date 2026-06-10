@@ -286,6 +286,57 @@ app.delete("/api/settings/twitter", async (req, res) => {
 app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered" }); });
 
 // ─────────────────────────────────────────────────────────────
+//  ANALYTICS
+// ─────────────────────────────────────────────────────────────
+app.get("/api/analytics", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+
+  // Last 30 days
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: rows } = await supabase
+    .from("replies")
+    .select("status, account_handle, created_at, actioned_at")
+    .eq("user_id", req.user.id)
+    .gte("created_at", since)
+    .order("created_at", { ascending: true });
+
+  if (!rows) return ok(res, { daily: [], accounts: [] });
+
+  // ── Daily breakdown ───────────────────────────────────────
+  const dailyMap = {};
+  rows.forEach(r => {
+    const day = r.created_at.split("T")[0];
+    if (!dailyMap[day]) dailyMap[day] = { date: day, generated: 0, approved: 0, dismissed: 0 };
+    dailyMap[day].generated++;
+    if (r.status === "approved")  dailyMap[day].approved++;
+    if (r.status === "dismissed") dailyMap[day].dismissed++;
+  });
+  const daily = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  // ── Per-account breakdown ─────────────────────────────────
+  const accountMap = {};
+  rows.forEach(r => {
+    const h = r.account_handle;
+    if (!accountMap[h]) accountMap[h] = { handle: h, generated: 0, approved: 0, dismissed: 0 };
+    accountMap[h].generated++;
+    if (r.status === "approved")  accountMap[h].approved++;
+    if (r.status === "dismissed") accountMap[h].dismissed++;
+  });
+  const accounts = Object.values(accountMap)
+    .sort((a, b) => b.generated - a.generated)
+    .slice(0, 10);
+
+  // ── Summary ───────────────────────────────────────────────
+  const total     = rows.length;
+  const approved  = rows.filter(r => r.status === "approved").length;
+  const dismissed = rows.filter(r => r.status === "dismissed").length;
+  const approvalRate = total > 0 ? Math.round((approved / (approved + dismissed || 1)) * 100) : 0;
+
+  ok(res, { daily, accounts, summary: { total, approved, dismissed, approvalRate } });
+});
+
+// ─────────────────────────────────────────────────────────────
 //  START
 // ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
