@@ -103,6 +103,12 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 }
 .card-status-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; transition: background 0.2s; }
 .card-time { font-size: 10px; color: var(--ink-faint); position: absolute; top: 24px; right: 24px; }
+.score-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 20px;
+  border: 1px solid; margin-left: auto; flex-shrink: 0;
+}
 .tweet-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
 .avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .tweet-name { font-size: 13px; font-weight: 700; color: var(--ink); }
@@ -634,6 +640,37 @@ function loadUser() {
   setInterval(loadData, 60000);
 })();
 
+// ─── Engagement Score Badge ───────────────────────────────────
+function calcScore(createdIso, likes) {
+  var seconds = Math.floor((Date.now() - new Date(createdIso)) / 1000);
+  return Math.max(0, seconds) + (likes * 5);
+}
+function formatScore(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1).replace(/\.0$/,"") + "M";
+  if (n >= 1000)    return (n/1000).toFixed(1).replace(/\.0$/,"") + "K";
+  return String(n);
+}
+function scoreColor(n) {
+  if (n < 1000)  return { bg:"#f0ede6", border:"#d3d1c7", text:"#5f5e5a" };
+  if (n < 10000) return { bg:"#e6f1fb", border:"#85b7eb", text:"#0c447c" };
+  if (n < 50000) return { bg:"#faeeda", border:"#ef9f27", text:"#633806" };
+  return             { bg:"#eaf3de", border:"#97c459", text:"#27500a" };
+}
+function updateScoreBadges() {
+  document.querySelectorAll(".score-badge[data-created]").forEach(function(el) {
+    var created = el.getAttribute("data-created");
+    var likes   = parseInt(el.getAttribute("data-likes") || "0", 10);
+    if (!created) return;
+    var score = calcScore(created, likes);
+    var c = scoreColor(score);
+    el.textContent       = formatScore(score);
+    el.style.background  = c.bg;
+    el.style.borderColor = c.border;
+    el.style.color       = c.text;
+  });
+}
+setInterval(updateScoreBadges, 1000);
+
 // ─── State ────────────────────────────────────────────────────
 var accounts = [], replies = [], currentFilter = "all", searchQuery = "";
 
@@ -685,9 +722,10 @@ function renderCards() {
     var p = r.status === "pending";
     return '<div class="card" data-id="'+r.id+'" data-status="'+r.status+'">' +
       '<div class="card-status-bar" style="background:'+(r.status==="approved"?"var(--green)":r.status==="dismissed"?"var(--red)":"transparent")+'"></div>' +
-      '<div class="card-time">'+(r.created_at ? ago(r.created_at) : "")+'</div>' +
+      '<div class="card-time">'+(r.tweet_created_at ? ago(r.tweet_created_at) : r.created_at ? ago(r.created_at) : "")+'</div>' +
       '<div class="tweet-head"><a href="https://x.com/'+r.account_handle+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none"><div class="avatar" style="background:'+r.color+'">'+r.initials+'</div>' +
-      '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a></div>' +
+      '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a>' +
+      '<span class="score-badge" id="score-'+r.id+'" data-created="'+(r.tweet_created_at||r.created_at||'')+'" data-likes="'+(r.like_count||0)+'"></span></div>' +
       '<div class="tweet-text">\u201C'+r.tweet_text+'\u201D</div>' +
       '<div class="reply-section"><div class="reply-label">Suggested Reply</div>' +
       '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" title="'+(p?'Click to edit reply':'')+'" style="'+(p?'cursor:text;border-color:var(--border-secondary)':'')+'">'+r.reply_text+'</div>' +
@@ -700,6 +738,7 @@ function renderCards() {
         ) +
       '</div></div></div>';
   }).join("");
+  setTimeout(updateScoreBadges, 0);
 }
 
 function updateCounts() {

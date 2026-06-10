@@ -67,16 +67,20 @@ async function poll() {
 
       try {
         const replyText = await generateReply(tweet.text, handle, cfg);
+        const tweetCreatedAt = tweet.createdAt ? new Date(tweet.createdAt).toISOString() : null;
         await supabase.from("replies").insert({
-          user_id:        userId,
-          tweet_id:       tweetId,
-          account_handle: account.handle,
-          account_name:   account.name,
-          initials:       account.initials,
-          color:          account.color,
-          tweet_text:     tweet.text,
-          reply_text:     replyText,
-          status:         "pending",
+          user_id:          userId,
+          tweet_id:         tweetId,
+          account_handle:   account.handle,
+          account_name:     account.name,
+          initials:         account.initials,
+          color:            account.color,
+          tweet_text:       tweet.text,
+          reply_text:       replyText,
+          status:           "pending",
+          tweet_created_at: tweetCreatedAt,
+          like_count:       tweet.likeCount  || 0,
+          view_count:       tweet.viewCount  || 0,
         });
         await supabase.from("watchlist")
           .update({ last_tweet_id: tweetId }).eq("id", account.id);
