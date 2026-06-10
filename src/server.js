@@ -166,23 +166,25 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
   if (reply.status !== "pending") return err(res, "Already actioned", 400);
   const replyText = req.body.replyText?.trim() || reply.reply_text;
 
-  // Get user settings
   const { data: userSettings } = await supabase.from("settings")
     .select("x_auth_token, max_replies_per_hour").eq("user_id", req.user.id).single();
   if (!userSettings?.x_auth_token) return err(res, "No Twitter account connected. Please add your auth_token in Settings.", 400);
 
   const maxPerHour  = userSettings.max_replies_per_hour || 5;
-  const baseMinutes = 60 / maxPerHour; // e.g. 10/hour = 6 min base
+  const baseMinutes = 60 / maxPerHour;
+  const MIN_WAIT_MS = 30 * 1000; // never post in less than 30 seconds
 
-  // Random gap: pick any value between base×0.70 and base×1.30
+  // Random gap between -30% and +100% of base
   function randomGapMs() {
     const min = baseMinutes * 0.70;
     const max = baseMinutes * 2.00;
-    const randomMinutes = min + Math.random() * (max - min);
-    return Math.round(randomMinutes * 60 * 1000);
+    return Math.round((min + Math.random() * (max - min)) * 60 * 1000);
   }
 
-  // Find the latest scheduled_at in the queue for this user
+  const now = new Date();
+  let scheduledAt;
+
+  // Check if there are items already queued — stack after those
   const { data: lastQueued } = await supabase.from("replies")
     .select("scheduled_at")
     .eq("user_id", req.user.id)
@@ -191,15 +193,36 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
     .limit(1)
     .maybeSingle();
 
-  const now = new Date();
-  const gap = randomGapMs();
-  let scheduledAt;
-  if (!lastQueued?.scheduled_at) {
-    scheduledAt = new Date(now.getTime() + gap);
-  } else {
+  if (lastQueued?.scheduled_at) {
+    // Stack after the last queued item
     const lastTime = new Date(lastQueued.scheduled_at);
+    const gap = randomGapMs();
     const nextSlot = new Date(lastTime.getTime() + gap);
-    scheduledAt = nextSlot > now ? nextSlot : new Date(now.getTime() + gap);
+    scheduledAt = nextSlot > now ? nextSlot : new Date(now.getTime() + MIN_WAIT_MS);
+  } else {
+    // No queue — base schedule on last actually posted reply
+    const { data: lastPosted } = await supabase.from("replies")
+      .select("actioned_at")
+      .eq("user_id", req.user.id)
+      .eq("status", "approved")
+      .order("actioned_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const gap = randomGapMs();
+
+    if (lastPosted?.actioned_at) {
+      const lastPostTime = new Date(lastPosted.actioned_at);
+      const elapsedMs    = now.getTime() - lastPostTime.getTime();
+      const remainingMs  = gap - elapsedMs;
+      // If enough time has already passed, post almost immediately
+      scheduledAt = remainingMs > MIN_WAIT_MS
+        ? new Date(now.getTime() + remainingMs)
+        : new Date(now.getTime() + MIN_WAIT_MS);
+    } else {
+      // No previous post at all — just use the full gap from now
+      scheduledAt = new Date(now.getTime() + gap);
+    }
   }
 
   const { data: updated, error: upErr } = await supabase.from("replies")
@@ -207,6 +230,22 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
     .eq("id", id).select().single();
   if (upErr) return err(res, upErr.message);
   ok(res, { reply: updated, scheduledAt: scheduledAt.toISOString() });
+});
+
+// GET /api/queue/status — last posted reply time
+app.get("/api/queue/status", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data } = await supabase.from("replies")
+    .select("actioned_at, reply_text, account_handle")
+    .eq("user_id", req.user.id)
+    .eq("status", "approved")
+    .order("actioned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  ok(res, {
+    lastSentAt:     data?.actioned_at || null,
+    lastHandle:     data?.account_handle || null,
+  });
 });
 
 // GET /api/queue — all queued replies in order

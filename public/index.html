@@ -361,6 +361,15 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
       <div class="page-greeting">Queue</div>
       <div class="page-date">Replies scheduled to post automatically</div>
     </div>
+
+    <!-- Last sent status bar -->
+    <div id="queueStatusBar" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:12px;color:var(--ink-light)">
+        Last reply sent to <strong id="queueLastHandle">—</strong>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#c0392b" id="queueLastAgo">—</div>
+    </div>
+
     <div id="queueList"></div>
     <div id="queueEmpty" style="display:none" class="empty-state">
       <h3>Queue is empty</h3>
@@ -532,7 +541,32 @@ async function loadQueue() {
     queueItems = await api("/queue");
     renderQueue();
     updateQueueBadge();
+    loadQueueStatus();
   } catch(e) { console.error("Queue load failed", e); }
+}
+
+var queueStatusInterval = null;
+var lastSentAt = null;
+
+async function loadQueueStatus() {
+  try {
+    var status = await api("/queue/status");
+    lastSentAt = status.lastSentAt || null;
+    var bar    = document.getElementById("queueStatusBar");
+    var handle = document.getElementById("queueLastHandle");
+    var agoEl  = document.getElementById("queueLastAgo");
+    if (!lastSentAt || !bar) return;
+    bar.style.display = "flex";
+    if (handle) handle.textContent = "@" + (status.lastHandle || "—");
+    // Tick the "X min ago" live
+    if (queueStatusInterval) clearInterval(queueStatusInterval);
+    function tick() {
+      if (!agoEl) return;
+      agoEl.textContent = ago(lastSentAt);
+    }
+    tick();
+    queueStatusInterval = setInterval(tick, 10000);
+  } catch(e) {}
 }
 
 function updateQueueBadge() {
