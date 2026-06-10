@@ -70,18 +70,17 @@ async function postReply(replyText, tweetId, authToken) {
 async function generateReply(tweetText, authorHandle, settings) {
   const system = `You write Twitter/X replies on behalf of a user.
 
-Brand voice:
+Brand voice instructions — follow these exactly:
 ${settings.brand_voice}
 
-Rules:
-- Length: Write exactly ${settings.max_length || "3 sentences"} — no more, no less
-- ${settings.include_question ? "End with a short genuine question to drive engagement." : "Do not end with a question."}
+Additional constraints:
+- Write exactly ${settings.max_length || "3 sentences"}
+- ${settings.include_question ? "End with a short genuine question." : "Do not end with a question."}
 - Never include URLs or hashtags
-- Sound like a real thoughtful person, not a bot
-- Output ONLY the reply text — no quotes, no preamble, nothing else`;
+- Output ONLY the reply text — no preamble, no quotes, nothing else`;
 
   const msg = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 300,
     system,
     messages: [
