@@ -6,7 +6,7 @@ const cron        = require("node-cron");
 
 const supabase    = require("./supabase");
 const requireAuth = require("./auth");
-const { generateReply, fetchProfile } = require("./clients");
+const { postReply, generateReply, fetchProfile } = require("./clients");
 const { poll, COLORS } = require("./poller");
 
 const app = express();
@@ -60,6 +60,34 @@ cron.schedule("* * * * *", () => {
 
 poll(); // run once on boot
 
+// ─────────────────────────────────────────────────────────────
+//  Queue processor — fires every minute, posts due replies
+// ─────────────────────────────────────────────────────────────
+cron.schedule("* * * * *", async () => {
+  const now = new Date().toISOString();
+  const { data: due } = await supabase.from("replies")
+    .select("*")
+    .eq("status", "queued")
+    .lte("scheduled_at", now);
+
+  if (!due?.length) return;
+
+  for (const reply of due) {
+    const { data: userSettings } = await supabase.from("settings")
+      .select("x_auth_token").eq("user_id", reply.user_id).single();
+    if (!userSettings?.x_auth_token) continue;
+
+    try {
+      await postReply(reply.reply_text, reply.tweet_id, userSettings.x_auth_token);
+      await supabase.from("replies")
+        .update({ status: "approved", actioned_at: now })
+        .eq("id", reply.id);
+      console.log(`[Queue] Posted reply ${reply.id} for @${reply.account_handle}`);
+    } catch(e) {
+      console.error(`[Queue] Failed to post reply ${reply.id}:`, e.message);
+    }
+  }
+});
 
 function ok(res, data)             { res.json({ success: true, ...data }); }
 function err(res, msg, status=500) { res.status(status).json({ error: msg }); }
@@ -127,6 +155,120 @@ app.get("/api/replies", async (req, res) => {
     .order("created_at", { ascending: false });
   if (error) return err(res, error.message);
   res.json(data);
+});
+
+app.patch("/api/replies/:id/approve", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const id = parseInt(req.params.id, 10);
+  const { data: reply, error: fetchErr } = await supabase.from("replies")
+    .select("*").eq("id", id).eq("user_id", req.user.id).single();
+  if (fetchErr || !reply) return err(res, "Reply not found", 404);
+  if (reply.status !== "pending") return err(res, "Already actioned", 400);
+  const replyText = req.body.replyText?.trim() || reply.reply_text;
+
+  const { data: userSettings } = await supabase.from("settings")
+    .select("x_auth_token, max_replies_per_hour").eq("user_id", req.user.id).single();
+  if (!userSettings?.x_auth_token) return err(res, "No Twitter account connected. Please add your auth_token in Settings.", 400);
+
+  const maxPerHour  = userSettings.max_replies_per_hour || 5;
+  const baseMinutes = 60 / maxPerHour;
+  const MIN_WAIT_MS = 30 * 1000; // never post in less than 30 seconds
+
+  // Random gap between -30% and +100% of base
+  function randomGapMs() {
+    const min = baseMinutes * 0.70;
+    const max = baseMinutes * 2.00;
+    return Math.round((min + Math.random() * (max - min)) * 60 * 1000);
+  }
+
+  const now = new Date();
+  let scheduledAt;
+
+  // Check if there are items already queued — stack after those
+  const { data: lastQueued } = await supabase.from("replies")
+    .select("scheduled_at")
+    .eq("user_id", req.user.id)
+    .eq("status", "queued")
+    .order("scheduled_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastQueued?.scheduled_at) {
+    // Stack after the last queued item
+    const lastTime = new Date(lastQueued.scheduled_at);
+    const gap = randomGapMs();
+    const nextSlot = new Date(lastTime.getTime() + gap);
+    scheduledAt = nextSlot > now ? nextSlot : new Date(now.getTime() + MIN_WAIT_MS);
+  } else {
+    // No queue — base schedule on last actually posted reply
+    const { data: lastPosted } = await supabase.from("replies")
+      .select("actioned_at")
+      .eq("user_id", req.user.id)
+      .eq("status", "approved")
+      .order("actioned_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const gap = randomGapMs();
+
+    if (lastPosted?.actioned_at) {
+      const lastPostTime = new Date(lastPosted.actioned_at);
+      const elapsedMs    = now.getTime() - lastPostTime.getTime();
+      const remainingMs  = gap - elapsedMs;
+      // If enough time has already passed, post almost immediately
+      scheduledAt = remainingMs > MIN_WAIT_MS
+        ? new Date(now.getTime() + remainingMs)
+        : new Date(now.getTime() + MIN_WAIT_MS);
+    } else {
+      // No previous post at all — just use the full gap from now
+      scheduledAt = new Date(now.getTime() + gap);
+    }
+  }
+
+  const { data: updated, error: upErr } = await supabase.from("replies")
+    .update({ status:"queued", reply_text:replyText, scheduled_at: scheduledAt.toISOString(), actioned_at: now.toISOString() })
+    .eq("id", id).select().single();
+  if (upErr) return err(res, upErr.message);
+  ok(res, { reply: updated, scheduledAt: scheduledAt.toISOString() });
+});
+
+// GET /api/queue/status — last posted reply time
+app.get("/api/queue/status", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data } = await supabase.from("replies")
+    .select("actioned_at, reply_text, account_handle")
+    .eq("user_id", req.user.id)
+    .eq("status", "approved")
+    .order("actioned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  ok(res, {
+    lastSentAt:     data?.actioned_at || null,
+    lastHandle:     data?.account_handle || null,
+  });
+});
+
+// GET /api/queue — all queued replies in order
+app.get("/api/queue", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data, error } = await supabase.from("replies")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .eq("status", "queued")
+    .order("scheduled_at", { ascending: true });
+  if (error) return err(res, error.message);
+  res.json(data || []);
+});
+
+// DELETE /api/queue/:id — remove from queue (back to pending)
+app.delete("/api/queue/:id", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const id = parseInt(req.params.id, 10);
+  const { data: updated, error } = await supabase.from("replies")
+    .update({ status:"pending", scheduled_at: null, actioned_at: null })
+    .eq("id", id).eq("user_id", req.user.id).select().single();
+  if (error) return err(res, error.message);
+  ok(res, { reply: updated });
 });
 
 app.patch("/api/replies/:id/dismiss", async (req, res) => {
@@ -234,6 +376,46 @@ app.put("/api/settings", async (req, res) => {
     .update(patch).eq("user_id", req.user.id).select().single();
   if (error) return err(res, error.message);
   ok(res, { settings: data });
+});
+
+// ─────────────────────────────────────────────────────────────
+//  TWITTER ACCOUNT CONNECTION
+// ─────────────────────────────────────────────────────────────
+
+// Save user's X auth_token and handle
+app.put("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { x_auth_token, x_handle } = req.body;
+  if (!x_auth_token) return err(res, "auth_token required", 400);
+  if (!x_handle) return err(res, "handle required", 400);
+
+  const handle = x_handle.replace(/^@/, "").toLowerCase();
+
+  const { data, error } = await supabase.from("settings")
+    .update({ x_auth_token, x_handle: handle, updated_at: new Date().toISOString() })
+    .eq("user_id", req.user.id).select().single();
+  if (error) return err(res, error.message);
+  ok(res, { handle });
+});
+
+// Get connection status (never return the actual token to browser)
+app.get("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data } = await supabase.from("settings")
+    .select("x_handle, x_auth_token").eq("user_id", req.user.id).single();
+  res.json({
+    connected: !!data?.x_auth_token,
+    handle:    data?.x_handle || null,
+  });
+});
+
+// Disconnect Twitter account
+app.delete("/api/settings/twitter", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  await supabase.from("settings")
+    .update({ x_auth_token: null, x_handle: null })
+    .eq("user_id", req.user.id);
+  ok(res, {});
 });
 
 app.post("/api/poll", (req, res) => { poll(); ok(res, { message: "Poll triggered" }); });
