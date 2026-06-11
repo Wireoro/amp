@@ -55,7 +55,6 @@ async function fetchProfile(handle) {
   }
 }
 
-
 // ── Generate a reply with Claude ─────────────────────────────
 async function generateReply(tweetText, authorHandle, settings) {
   const system = `You write Twitter/X replies on behalf of a user.

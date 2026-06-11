@@ -122,29 +122,14 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .tweet-handle { font-size: 11px; color: var(--ink-faint); }
 .tweet-text {
   font-family: var(--serif); font-size: 15px; line-height: 1.65; color: #4a4a4a;
-  margin-bottom: 18px; font-style: italic;
-  padding: 8px 12px;
-  border-left: 3px solid transparent;
+  margin-bottom: 18px; font-style: italic; cursor: pointer; display: block;
+  padding: 8px 12px; border-left: 3px solid transparent;
   border-radius: 0 6px 6px 0;
-  cursor: pointer;
-  display: block;
   transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.15s;
 }
-.tweet-text:hover {
-  border-left-color: #c0392b;
-  background: #faf8f2;
-  color: #1a1a1a;
-  transform: translateX(4px);
-}
-.tweet-text::after {
-  content: ' ↗';
-  font-style: normal;
-  font-size: 11px;
-  color: #c0392b;
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-.tweet-text:hover::after { opacity: 1; }
+.tweet-text:hover { border-left-color:#c0392b; background:#faf8f2; color:#1a1a1a; transform:translateX(4px); }
+.tweet-text::after { content:' ↗'; font-style:normal; font-size:11px; color:#c0392b; opacity:0; transition:opacity 0.2s; }
+.tweet-text:hover::after { opacity:1; }
 .reply-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; color: var(--blue); margin-bottom: 8px; font-weight: 600; }
 .reply-text {
   font-size: 13.5px; line-height: 1.65; color: var(--ink-light); margin-bottom: 18px;
@@ -452,6 +437,17 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     </div>
 
     
+
+    <div class="settings-section">
+      <div class="settings-title">Brand Voice</div>
+      <p style="font-size:12px;color:var(--ink-muted);margin-bottom:12px">This is sent directly to Claude as your writing instructions. Be specific — describe your tone, style, what to avoid, and what makes a reply worth reading.</p>
+      <textarea class="settings-textarea">Professional but conversational. We're a SaaS startup, so keep it sharp and insight-driven. Avoid generic platitudes. Lead with specific examples from our experience when possible. Keep replies under 280 characters.</textarea>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Reply Preferences</div>
+      <div class="settings-row">
+        <div><div class="settings-label">Max Replies Per Hour</div><div class="settings-desc">Replies will be auto-spread across the hour</div></div>
         <select class="settings-select" id="maxRepliesSelect">
           <option value="3">3 per hour</option>
           <option value="5" selected>5 per hour</option>
@@ -518,7 +514,94 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
+// ─── Queue ────────────────────────────────────────────────────
+var queueItems = [];
 
+}
+
+var lastSentAt = null;
+
+    tick();
+    } catch(e) {}
+}
+
+function updateQueueBadge() {
+  var badge = document.getElementById("queueBadge");
+  if (!badge) return;
+  if (queueItems.length > 0) {
+    badge.textContent = queueItems.length;
+    badge.style.display = "inline";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function timeUntil(iso) {
+  var diff = Math.floor((new Date(iso) - Date.now()) / 1000);
+  if (diff <= 0) return "Posting now…";
+  if (diff < 60) return "in " + diff + "s";
+  var m = Math.floor(diff / 60), s = diff % 60;
+  if (m < 60) return "in " + m + "m " + s + "s";
+  return "in " + Math.floor(m/60) + "h " + (m%60) + "m";
+}
+
+function formatScheduledTime(iso) {
+  var d = new Date(iso);
+  return d.toLocaleTimeString("fr-FR", { hour:"2-digit", minute:"2-digit", timeZone:"Europe/Paris" }) + " Paris";
+}
+
+function renderQueue() {
+  var el = document.getElementById("queueList");
+  var empty = document.getElementById("queueEmpty");
+  if (!el) return;
+  if (!queueItems.length) {
+    el.innerHTML = "";
+    if (empty) empty.style.display = "block";
+    return;
+  }
+  if (empty) empty.style.display = "none";
+  el.innerHTML = queueItems.map(function(r, i) {
+    return '<div class="card" style="border-left:3px solid #4a6fa5">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<div style="background:#e8edf5;color:#4a6fa5;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">#'+(i+1)+'</div>' +
+          '<div class="avatar" style="background:'+r.color+';width:28px;height:28px;font-size:10px">'+r.initials+'</div>' +
+          '<div><div class="tweet-name" style="font-size:12px">@'+r.account_handle+'</div></div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:12px;font-weight:600;color:#4a6fa5" id="countdown-'+r.id+'">'+timeUntil(r.scheduled_at)+'</div>' +
+          '<div style="font-size:10px;color:var(--ink-faint)">'+formatScheduledTime(r.scheduled_at)+'</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--ink-light);font-style:italic;margin-bottom:8px;padding:8px 10px;background:var(--cream);border-radius:4px">"'+r.tweet_text.slice(0,80)+(r.tweet_text.length>80?"…":"")+'"</div>' +
+      '<div style="font-size:13px;color:var(--ink);margin-bottom:12px">'+r.reply_text+'</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn-dismiss" onclick="unqueue('+r.id+')" style="font-size:11px;padding:5px 12px">Remove from queue</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+async function unqueue(id) {
+  try {
+    await api("/queue/"+id, { method:"DELETE" });
+    queueItems = queueItems.filter(function(r){ return r.id !== id; });
+    renderQueue();
+    updateQueueBadge();
+    // Put it back in pending list
+    await loadData();
+    showToast("Removed from queue", "success");
+  } catch(e) { showToast("Failed: " + e.message); }
+}
+
+// Tick countdowns every second
+setInterval(function() {
+  queueItems.forEach(function(r) {
+    var el = document.getElementById("countdown-"+r.id);
+    if (el) el.textContent = timeUntil(r.scheduled_at);
+  });
+}, 1000);
+// Reload queue every 30s to catch posted items
 async function logout() {
   try { await fetch("/api/auth/logout", { method:"POST", headers:{"Authorization":"Bearer "+localStorage.getItem("amp_token")} }); } catch(e) {}
   localStorage.removeItem("amp_token");
@@ -648,7 +731,7 @@ function renderCards() {
       '<div class="card-time">'+(r.tweet_created_at ? ago(r.tweet_created_at) : r.created_at ? ago(r.created_at) : "")+'<span class="score-badge" id="score-'+r.id+'" data-created="'+(r.tweet_created_at||r.created_at||'')+'" data-likes="'+(r.like_count||0)+'" data-views="'+(r.view_count||0)+'" style="'+(p ? '' : 'display:none')+'"></span></div>' +
       '<div class="tweet-head"><a href="https://x.com/'+r.account_handle+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none"><div class="avatar" style="background:'+r.color+'">'+r.initials+'</div>' +
       '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a></div>' +
-      '<div class="tweet-text" onclick="window.open('https://x.com/'+r.account_handle+'/status/'+r.tweet_id+'','_blank')" title="Open tweet on Twitter">\u201C'+r.tweet_text+'\u201D</div>' +
+      '<div class="tweet-text" onclick="window.open(\'https://x.com/'+r.account_handle+'/status/'+r.tweet_id+'\',\'_blank\')">\u201C'+r.tweet_text+'\u201D</div>' +
       (r.tweet_image_url ? '<div style="margin:-4px 0 16px"><img src="'+r.tweet_image_url+'" alt="Tweet image" style="width:100%;max-height:280px;object-fit:cover;border-radius:8px;display:block" onerror="this.style.display=\'none\'"></div>' : '') +
       '<div class="reply-section"><div class="reply-label">Suggested Reply</div>' +
       '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" title="'+(p?'Click to edit reply':'')+'" style="'+(p?'cursor:text;border-color:var(--border-secondary)':'')+'">'+r.reply_text+'</div>' +
@@ -703,12 +786,25 @@ function loadSettings() {
     var toggles = document.querySelectorAll(".toggle");
     if (toggles[0]) toggles[0].classList.toggle("on", !!s.include_question);
   }).catch(function(){});
+  // Load Twitter connection status
+}
+
+  } catch(e) {}
+}
+
+  btn.disabled = true; btn.textContent = "Connecting…";
+  try {
+    showTwitterMsg("Connected as @" + data.handle + " ✓", "success");
+  } catch(e) {
+    showTwitterMsg(e.message, "error");
+  }
+  btn.disabled = false; btn.textContent = "Connect Twitter Account";
+}
+
 }
 
 
-
 // ─── Actions ──────────────────────────────────────────────────
-
 
 async function dismissReply(id) {
   var card = document.querySelector('.card[data-id="'+id+'"]');
