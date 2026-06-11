@@ -55,16 +55,6 @@ async function fetchProfile(handle) {
   }
 }
 
-// ── Post a reply to X using the user's own auth_token ────────
-async function postReply(replyText, tweetId, authToken) {
-  if (!authToken) throw new Error("No X auth_token found. Please connect your Twitter account in Settings.");
-  const res = await xapi.post("/tweet/create", {
-    auth_token: authToken,
-    text: replyText,
-    reply_to_tweet_id: tweetId,
-  });
-  return res.data;
-}
 
 // ── Generate a reply with Claude ─────────────────────────────
 async function generateReply(tweetText, authorHandle, settings) {
@@ -94,4 +84,4 @@ Additional constraints:
   return msg.content[0].text.trim();
 }
 
-module.exports = { fetchTweetsForAccounts, fetchProfile, postReply, generateReply };
+module.exports = { fetchTweetsForAccounts, fetchProfile, generateReply };

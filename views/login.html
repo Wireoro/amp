@@ -14,145 +14,129 @@ body {
 body::before { content:''; position:fixed; top:0; left:0; right:0; height:3px; background:#4a6fa5; }
 .card { background:#fff; border:1px solid #e4e0d6; padding:40px; width:100%; max-width:400px; }
 .logo { font-family:Georgia,serif; font-size:22px; color:#2c2c2c; margin-bottom:4px; }
-.sub  { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:#bbb; margin-bottom:32px; }
-.tabs { display:flex; border-bottom:1px solid #e4e0d6; margin-bottom:28px; }
-.tab  { flex:1; padding:10px; text-align:center; font-size:11px; text-transform:uppercase;
-        letter-spacing:1px; color:#999; cursor:pointer; border-bottom:2px solid transparent;
-        margin-bottom:-1px; }
+.sub { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:#bbb; margin-bottom:32px; }
+.tabs { display:flex; gap:0; margin-bottom:28px; border-bottom:1px solid #e4e0d6; }
+.tab {
+  flex:1; padding:10px; text-align:center; font-size:11px; text-transform:uppercase;
+  letter-spacing:1px; color:#999; cursor:pointer; border-bottom:2px solid transparent;
+  margin-bottom:-1px; transition:all 0.15s;
+}
 .tab.active { color:#4a6fa5; border-bottom-color:#4a6fa5; font-weight:700; }
-label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:1.5px;
-        color:#999; margin-bottom:6px; font-weight:600; }
-input { width:100%; padding:10px 14px; border:1px solid #e4e0d6; font-size:13px;
-        color:#2c2c2c; border-radius:3px; outline:none; margin-bottom:16px;
-        font-family:inherit; background:#fff; }
+label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:1.5px; color:#999; margin-bottom:6px; font-weight:600; }
+input {
+  width:100%; padding:10px 14px; border:1px solid #e4e0d6; background:#fff;
+  font-size:13px; color:#2c2c2c; border-radius:3px; outline:none;
+  margin-bottom:16px; transition:border-color 0.2s; font-family:inherit;
+}
 input:focus { border-color:#4a6fa5; }
-.btn  { width:100%; padding:11px; background:#4a6fa5; color:#fff; border:none;
-        border-radius:3px; font-size:12px; font-weight:600; cursor:pointer;
-        font-family:inherit; margin-top:4px; }
+.btn {
+  width:100%; padding:11px; background:#4a6fa5; color:#fff; border:none;
+  border-radius:3px; font-size:12px; font-weight:600; letter-spacing:0.5px;
+  cursor:pointer; transition:background 0.15s; font-family:inherit; margin-top:4px;
+}
 .btn:hover { background:#3d5f8f; }
 .btn:disabled { opacity:0.6; cursor:not-allowed; }
-.msg  { font-size:12px; margin-top:14px; padding:10px 12px; border-radius:3px; display:none; }
-.err  { color:#c04040; background:#fdf0f0; border:1px solid #f5c6c6; }
-.suc  { color:#3a6e3a; background:#f0faf0; border:1px solid #b8ddb8; }
-.panel { display:none; }
-.panel.on { display:block; }
+.msg { font-size:12px; margin-top:14px; padding:10px 12px; border-radius:3px; display:none; }
+.msg.error { color:#c04040; background:#fdf0f0; border:1px solid #f5c6c6; }
+.msg.success { color:#3a6e3a; background:#f0faf0; border:1px solid #b8ddb8; }
+.form { display:none; }
+.form.active { display:block; }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="logo">Draft<span style="color:#c0392b">illery</span></div>
+  <div class="logo">Draftillery</div>
   <div class="sub">Reply outreach dashboard</div>
 
   <div class="tabs">
-    <div class="tab on active" id="tab-in"  onclick="show('in')">Sign In</div>
-    <div class="tab"           id="tab-up"  onclick="show('up')">Create Account</div>
+    <div class="tab active" onclick="switchTab('login')">Sign In</div>
+    <div class="tab" onclick="switchTab('register')">Create Account</div>
   </div>
 
-  <!-- SIGN IN -->
-  <div class="panel on" id="panel-in">
+  <!-- LOGIN FORM -->
+  <div class="form active" id="loginForm">
     <label>Email</label>
-    <input type="email"    id="in-email" placeholder="you@example.com">
+    <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
     <label>Password</label>
-    <input type="password" id="in-pass"  placeholder="••••••••">
-    <button class="btn" id="in-btn" onclick="doLogin()">Sign In</button>
-    <div class="msg" id="in-msg"></div>
+    <input type="password" id="loginPass" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter')submitLogin()">
+    <button class="btn" id="loginBtn" onclick="submitLogin()">Sign In</button>
+    <div class="msg" id="loginMsg"></div>
   </div>
 
-  <!-- CREATE ACCOUNT -->
-  <div class="panel" id="panel-up">
+  <!-- REGISTER FORM -->
+  <div class="form" id="registerForm">
     <label>Full Name</label>
-    <input type="text"     id="up-name"  placeholder="Your name">
+    <input type="text" id="regName" placeholder="Your name">
     <label>Email</label>
-    <input type="email"    id="up-email" placeholder="you@example.com">
+    <input type="email" id="regEmail" placeholder="you@example.com" autocomplete="email">
     <label>Password</label>
-    <input type="password" id="up-pass"  placeholder="Min 6 characters">
-    <button class="btn" id="up-btn" onclick="doRegister()">Create Account</button>
-    <div class="msg" id="up-msg"></div>
+    <input type="password" id="regPass" placeholder="Min 6 characters"
+      onkeydown="if(event.key==='Enter')submitRegister()">
+    <button class="btn" id="regBtn" onclick="submitRegister()">Create Account</button>
+    <div class="msg" id="regMsg"></div>
   </div>
 </div>
 
 <script>
-// Switch tabs
-function show(panel) {
-  document.getElementById("panel-in").className = "panel" + (panel==="in" ? " on" : "");
-  document.getElementById("panel-up").className = "panel" + (panel==="up" ? " on" : "");
-  document.getElementById("tab-in").className   = "tab"   + (panel==="in" ? " active" : "");
-  document.getElementById("tab-up").className   = "tab"   + (panel==="up" ? " active" : "");
+function switchTab(tab) {
+  document.querySelectorAll(".tab").forEach(function(t,i){ t.classList.toggle("active", (tab==="login"?i===0:i===1)); });
+  document.getElementById("loginForm").classList.toggle("active", tab==="login");
+  document.getElementById("registerForm").classList.toggle("active", tab==="register");
 }
 
-// Show message
-function msg(id, text, type) {
+function showMsg(id, msg, type) {
   var el = document.getElementById(id);
-  el.textContent = text;
-  el.className = "msg " + (type === "ok" ? "suc" : "err");
-  el.style.display = "block";
+  el.textContent = msg; el.className = "msg " + type; el.style.display = "block";
 }
 
-// Sign in
-async function doLogin() {
-  var email = document.getElementById("in-email").value.trim();
-  var pass  = document.getElementById("in-pass").value;
-  var btn   = document.getElementById("in-btn");
-  if (!email || !pass) { msg("in-msg", "Please fill in all fields.", "err"); return; }
+async function submitLogin() {
+  var email = document.getElementById("loginEmail").value.trim();
+  var pass  = document.getElementById("loginPass").value;
+  var btn   = document.getElementById("loginBtn");
+  if (!email || !pass) return showMsg("loginMsg", "Please fill in all fields.", "error");
   btn.disabled = true; btn.textContent = "Signing in…";
   try {
-    var res  = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, password: pass })
+    var res = await fetch("/api/auth/login", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password: pass })
     });
     var data = await res.json();
-    if (!res.ok) {
-      msg("in-msg", data.error || "Invalid email or password.", "err");
-      btn.disabled = false; btn.textContent = "Sign In";
-      return;
-    }
-    // Save token then go to dashboard
+    if (!res.ok) { showMsg("loginMsg", data.error || "Invalid email or password.", "error"); btn.disabled=false; btn.textContent="Sign In"; return; }
     localStorage.setItem("amp_token", data.access_token);
     window.location.href = "/";
   } catch(e) {
-    msg("in-msg", "Server error — try again.", "err");
-    btn.disabled = false; btn.textContent = "Sign In";
+    showMsg("loginMsg", "Server error. Try again.", "error");
+    btn.disabled=false; btn.textContent="Sign In";
   }
 }
 
-// Register
-async function doRegister() {
-  var name  = document.getElementById("up-name").value.trim();
-  var email = document.getElementById("up-email").value.trim();
-  var pass  = document.getElementById("up-pass").value;
-  var btn   = document.getElementById("up-btn");
-  if (!name || !email || !pass) { msg("up-msg", "Please fill in all fields.", "err"); return; }
-  if (pass.length < 6) { msg("up-msg", "Password must be at least 6 characters.", "err"); return; }
-  btn.disabled = true; btn.textContent = "Creating account…";
+async function submitRegister() {
+  var name  = document.getElementById("regName").value.trim();
+  var email = document.getElementById("regEmail").value.trim();
+  var pass  = document.getElementById("regPass").value;
+  var btn   = document.getElementById("regBtn");
+  if (!name || !email || !pass) return showMsg("regMsg", "Please fill in all fields.", "error");
+  if (pass.length < 6) return showMsg("regMsg", "Password must be at least 6 characters.", "error");
+  btn.disabled=true; btn.textContent="Creating account…";
   try {
-    var res  = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, password: pass, name: name })
+    var res = await fetch("/api/auth/register", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password: pass, name })
     });
     var data = await res.json();
-    if (!res.ok) {
-      msg("up-msg", data.error || "Registration failed.", "err");
-      btn.disabled = false; btn.textContent = "Create Account";
-      return;
-    }
-    msg("up-msg", "Account created! Taking you in…", "ok");
+    if (!res.ok) { showMsg("regMsg", data.error || "Registration failed.", "error"); btn.disabled=false; btn.textContent="Create Account"; return; }
+    showMsg("regMsg", "Account created! Signing you in…", "success");
     localStorage.setItem("amp_token", data.access_token);
-    setTimeout(function() { window.location.href = "/"; }, 800);
+    setTimeout(function(){ window.location.href = "/"; }, 1000);
   } catch(e) {
-    msg("up-msg", "Server error — try again.", "err");
-    btn.disabled = false; btn.textContent = "Create Account";
+    showMsg("regMsg", "Server error. Try again.", "error");
+    btn.disabled=false; btn.textContent="Create Account";
   }
 }
 
-// Enter key on password fields
-document.getElementById("in-pass").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") doLogin();
-});
-document.getElementById("up-pass").addEventListener("keydown", function(e) {
-  if (e.key === "Enter") doRegister();
-});
+// Already logged in? Go to dashboard
+if (localStorage.getItem("amp_token")) window.location.href = "/";
 </script>
 </body>
 </html>
