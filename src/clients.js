@@ -94,4 +94,4 @@ Additional constraints:
   return msg.content[0].text.trim();
 }
 
-module.exports = { fetchTweetsForAccounts, fetchProfile, postReply, generateReply };
+module.exports = { fetchTweetsForAccounts, fetchProfile, generateReply };
