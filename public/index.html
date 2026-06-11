@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draftillery</title>
+<style>
+:root {
+  --cream: #faf8f2;
+  --cream-dark: #f2efe6;
+  --ink: #2c2c2c;
+  --ink-light: #666;
+  --ink-muted: #999;
+  --ink-faint: #bbb;
+  --border: #e4e0d6;
+  --blue: #4a6fa5;
+  --blue-hover: #3d5f8f;
+  --green: #5a9a5a;
+  --red: #c04040;
+  --sidebar-w: 232px;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body { font-family: var(--sans); background: var(--cream); color: var(--ink); display: flex; overflow: hidden; }
+button { font-family: var(--sans); cursor: pointer; border: none; background: none; transition: all 0.15s; }
+input, textarea, select { font-family: var(--sans); outline: none; }
+::selection { background: var(--blue); color: #fff; }
+
+/* ===== TOP ACCENT BAR ===== */
+body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--blue); z-index: 1000; }
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  width: var(--sidebar-w); height: 100vh; padding: 28px 20px 20px;
+  border-right: 1px solid var(--border); background: var(--cream);
+  display: flex; flex-direction: column; flex-shrink: 0;
+  position: fixed; top: 3px; left: 0; bottom: 0; z-index: 90;
+  overflow-y: auto;
+}
+.logo { font-family: var(--serif); font-size: 19px; color: var(--ink); margin-bottom: 1px; }
+.edition { font-size: 8.5px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-faint); margin-bottom: 32px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 2px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500;
+  color: var(--ink-muted); border-radius: 6px; cursor: pointer; transition: all 0.15s;
+}
+.nav-item:hover { color: var(--ink-light); background: rgba(0,0,0,0.02); }
+.nav-item.active { color: var(--ink); font-weight: 700; background: rgba(0,0,0,0.03); }
+.nav-icon { width: 16px; height: 16px; opacity: 0.4; }
+.nav-item.active .nav-icon { opacity: 0.7; }
+.nav-badge { margin-left: auto; background: var(--blue); color: #fff; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; letter-spacing: 0; text-transform: none; }
+.side-hr { height: 1px; background: var(--border); margin: 18px 0; }
+.side-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2.5px; color: var(--ink-faint); margin-bottom: 14px; font-weight: 600; }
+.side-account { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; font-size: 11.5px; color: var(--ink-light); cursor: pointer; padding: 4px 0; transition: color 0.15s; }
+.side-account:hover { color: var(--ink); }
+.side-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.side-bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border); }
+.side-user { display: flex; align-items: center; gap: 10px; }
+.side-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 700; }
+.side-uname { font-size: 12px; font-weight: 600; color: var(--ink); }
+.side-uhandle { font-size: 10px; color: var(--ink-faint); }
+
+/* ===== MAIN ===== */
+.main { margin-left: var(--sidebar-w); margin-top: 3px; flex: 1; height: calc(100vh - 3px); overflow-y: auto; }
+.page { display: none; padding: 32px 40px 80px; max-width: 860px; }
+.page.active { display: block; }
+.page-header { margin-bottom: 28px; }
+.page-greeting { font-family: var(--serif); font-size: 24px; color: var(--ink); font-weight: 400; line-height: 1.3; margin-bottom: 4px; }
+.page-date { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-faint); }
+
+/* ===== STATS ROW ===== */
+.stats { display: flex; gap: 24px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.stat-num { font-size: 22px; font-weight: 700; color: var(--ink); font-family: var(--serif); }
+.stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--ink-faint); margin-top: 1px; }
+
+/* ===== FILTERS ===== */
+.filters { display: flex; gap: 4px; margin-bottom: 24px; }
+.filter-btn {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 500;
+  padding: 6px 14px; border-radius: 4px; color: var(--ink-muted); transition: all 0.15s;
+}
+.filter-btn:hover { color: var(--ink-light); background: rgba(0,0,0,0.03); }
+.filter-btn.active { color: var(--ink); background: rgba(0,0,0,0.05); font-weight: 700; }
+.filter-count { font-size: 9px; color: var(--ink-faint); margin-left: 3px; font-weight: 400; }
+
+/* ===== REPLY CARDS ===== */
+.card {
+  background: #fff; border: 1px solid var(--border); padding: 24px;
+  margin-bottom: 14px; transition: all 0.3s ease; position: relative;
+}
+.card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+.card.approved { animation: approveSlide 0.5s ease forwards; }
+.card.dismissed { animation: dismissFade 0.4s ease forwards; }
+@keyframes approveSlide {
+  0% { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(40px); max-height: 0; padding: 0 24px; margin-bottom: 0; border-width: 0; }
+}
+@keyframes dismissFade {
+  0% { opacity: 1; }
+  100% { opacity: 0; max-height: 0; padding: 0 24px; margin-bottom: 0; border-width: 0; }
+}
+.card-status-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: transparent; transition: background 0.2s; }
+.card-time {
+  font-size: 10px; color: var(--ink-faint);
+  position: absolute; top: 24px; right: 24px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  pointer-events: none;
+}
+.score-badge {
+  font-size: 11px; font-weight: 700;
+  color: #c0392b;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.tweet-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.tweet-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.tweet-head a:hover .tweet-name { color: var(--blue); }
+.tweet-handle { font-size: 11px; color: var(--ink-faint); }
+.tweet-text {
+  font-family: var(--serif); font-size: 15px; line-height: 1.65; color: #4a4a4a;
+  margin-bottom: 18px; font-style: italic;
+  padding: 8px 12px;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+  display: block;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.15s;
+}
+.tweet-text:hover {
+  border-left-color: #c0392b;
+  background: #faf8f2;
+  color: #1a1a1a;
+  transform: translateX(4px);
+}
+.tweet-text::after {
+  content: ' ↗';
+  font-style: normal;
+  font-size: 11px;
+  color: #c0392b;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.tweet-text:hover::after { opacity: 1; }
+.reply-label { font-size: 8px; text-transform: uppercase; letter-spacing: 2px; color: var(--blue); margin-bottom: 8px; font-weight: 600; }
+.reply-text {
+  font-size: 13.5px; line-height: 1.65; color: var(--ink-light); margin-bottom: 18px;
+  padding: 10px 14px; background: var(--cream); border-radius: 4px;
+  border: 1px solid transparent; cursor: text; transition: border-color 0.2s;
+  user-select: text; -webkit-user-select: text; pointer-events: all;
+}
+.reply-text:hover { border-color: var(--border); }
+.reply-text:focus { border-color: var(--blue); outline: none; background: #fff; }
+.reply-text[contenteditable] { min-height: 40px; }
+.card-actions { display: flex; gap: 8px; align-items: center; }
+.btn-dismiss {
+  padding: 8px 24px; background: transparent; color: var(--ink-faint);
+  font-size: 11px; letter-spacing: 0.5px; border: 1px solid var(--border); border-radius: 3px;
+}
+.btn-dismiss:hover { border-color: var(--ink-muted); color: var(--ink-light); }
+.btn-edit {
+  margin-left: auto; font-size: 10px; color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.btn-edit:hover { color: var(--blue); }
+
+/* ===== EMPTY STATE ===== */
+.empty-state { text-align: center; padding: 60px 20px; color: var(--ink-muted); }
+.empty-state h3 { font-family: var(--serif); font-size: 20px; font-weight: 400; color: var(--ink-light); margin-bottom: 6px; }
+.empty-state p { font-size: 13px; }
+
+/* ===== WATCHLIST PAGE ===== */
+.add-form { display: flex; gap: 8px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.add-input {
+  flex: 1; padding: 10px 14px; border: 1px solid var(--border); background: #fff;
+  font-size: 13px; color: var(--ink); border-radius: 3px; transition: border-color 0.2s;
+}
+.add-input::placeholder { color: var(--ink-faint); }
+.add-input:focus { border-color: var(--blue); }
+.btn-add { padding: 10px 20px; background: var(--blue); color: #fff; font-size: 11px; letter-spacing: 0.5px; font-weight: 500; border-radius: 3px; }
+.btn-add:hover { background: var(--blue-hover); }
+.wl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wl-card {
+  background: #fff; border: 1px solid var(--border); padding: 18px;
+  display: flex; align-items: center; gap: 14px; transition: box-shadow 0.2s;
+}
+.wl-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+.wl-info { flex: 1; }
+.wl-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+.wl-handle { font-size: 11px; color: var(--ink-faint); }
+.wl-meta { font-size: 10px; color: var(--ink-muted); margin-top: 4px; }
+.wl-btn {
+  width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); color: var(--ink-faint); font-size: 12px;
+}
+.wl-btn:hover { border-color: var(--ink-muted); color: var(--ink-light); }
+.wl-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+/* ===== ANALYTICS PAGE ===== */
+.analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+.analytics-card { background: #fff; border: 1px solid var(--border); padding: 20px; }
+.analytics-card h4 { font-size: 8.5px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-faint); margin-bottom: 14px; font-weight: 600; }
+.chart-wrap { position: relative; width: 100%; height: clamp(180px, 28vh, 260px); }
+.metric-big { font-family: var(--serif); font-size: 36px; color: var(--ink); margin-bottom: 2px; }
+.metric-change { font-size: 11px; }
+.metric-change.up { color: var(--green); }
+.metric-change.down { color: var(--red); }
+.activity-list { margin-top: 28px; }
+.activity-label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-faint); margin-bottom: 14px; font-weight: 600; }
+.activity-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.activity-dot.approved { background: var(--green); }
+.activity-dot.dismissed { background: var(--red); }
+.activity-dot.edited { background: var(--blue); }
+.activity-text { font-size: 12.5px; color: var(--ink-light); flex: 1; }
+.activity-text strong { color: var(--ink); font-weight: 600; }
+.activity-time { font-size: 10px; color: var(--ink-faint); }
+
+/* ===== SETTINGS PAGE ===== */
+.settings-section { margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+.settings-section:last-child { border-bottom: none; }
+.settings-title { font-size: 8.5px; text-transform: uppercase; letter-spacing: 2px; color: var(--ink-faint); margin-bottom: 16px; font-weight: 600; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.settings-label { font-size: 13px; color: var(--ink); }
+.settings-desc { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+.settings-textarea {
+  width: 100%; padding: 12px 14px; border: 1px solid var(--border); background: #fff;
+  font-size: 13px; color: var(--ink); border-radius: 3px; resize: vertical;
+  min-height: 80px; line-height: 1.6; font-family: var(--sans); transition: border-color 0.2s;
+}
+.settings-textarea:focus { border-color: var(--blue); }
+.settings-select {
+  padding: 8px 12px; border: 1px solid var(--border); background: #fff;
+  font-size: 12px; color: var(--ink); border-radius: 3px; appearance: auto;
+}
+.toggle { position: relative; width: 40px; height: 22px; border-radius: 11px; background: var(--border); cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+.toggle.on { background: var(--blue); }
+.toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+.toggle.on::after { transform: translateX(18px); }
+.connected-account { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid var(--border); padding: 16px; border-radius: 3px; }
+.connected-status { font-size: 10px; color: var(--green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.btn-disconnect { font-size: 10px; color: var(--red); margin-left: auto; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.btn-disconnect:hover { text-decoration: underline; }
+
+/* ===== SEARCH ===== */
+.search-bar { position: relative; margin-bottom: 20px; }
+.search-input {
+  width: 100%; padding: 10px 14px 10px 36px; border: 1px solid var(--border); background: #fff;
+  font-size: 12.5px; color: var(--ink); border-radius: 3px; transition: border-color 0.2s;
+}
+.search-input::placeholder { color: var(--ink-faint); }
+.search-input:focus { border-color: var(--blue); }
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-faint); font-size: 13px; pointer-events: none; }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; padding: 12px 20px;
+  background: var(--ink); color: #fff; font-size: 12.5px; border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 500;
+  transform: translateY(80px); opacity: 0; transition: all 0.3s ease;
+}
+.toast.visible { transform: translateY(0); opacity: 1; }
+.toast.success { background: var(--green); }
+
+/* ===== KEYBOARD HINT ===== */
+.kbd { display: inline-block; padding: 1px 5px; background: var(--cream-dark); border: 1px solid var(--border); border-radius: 3px; font-size: 9px; font-family: var(--sans); color: var(--ink-muted); margin-left: 4px; }
+
+/* ===== PRINT ===== */
+@media print {
+  body::before { display: none; }
+  .sidebar { display: none; }
+  .main { margin-left: 0; overflow: visible; height: auto; }
+  .page { max-width: 100%; }
+  .card { page-break-inside: avoid; box-shadow: none; }
+  .toast { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">Draft<span style="color:#c0392b">illery</span></div>
+  <div class="edition">Vol. I &middot; June 2026</div>
+
+  <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+    Dashboard
+    <span class="nav-badge" id="pendingBadge">4</span>
+  </div>
+  <div class="nav-item" data-page="watchlist" onclick="navigate('watchlist')">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3"/></svg>
+    Watchlist
+  </div>
+  <div class="nav-item" data-page="analytics" onclick="navigate('analytics')">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="10" width="3" height="5" rx="0.5"/><rect x="6" y="6" width="3" height="9" rx="0.5"/><rect x="11" y="2" width="3" height="13" rx="0.5"/></svg>
+    Analytics
+  </div>
+  <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+    Settings
+  </div>
+
+  <div class="side-hr"></div>
+  <div class="side-label">Monitored</div>
+  <div id="sideAccounts"></div>
+
+  <div class="side-bottom">
+    <div class="side-user">
+      <div class="side-avatar" id="sideInitials">?</div>
+      <div style="flex:1">
+        <div class="side-uname" id="sideName">Loading...</div>
+        <div class="side-uhandle" id="sideEmail"></div>
+      </div>
+    </div>
+    <button onclick="logout()" style="margin-top:12px;width:100%;padding:7px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-faint);border:1px solid var(--border);border-radius:3px;cursor:pointer;background:transparent;transition:all 0.15s" onmouseover="this.style.color='var(--red)';this.style.borderColor='var(--red)'" onmouseout="this.style.color='var(--ink-faint)';this.style.borderColor='var(--border)'">Sign Out</button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div class="page-greeting" id="greeting">Good morning. <span id="pendingCount">4</span>&nbsp;replies waiting.</div>
+      <div class="page-date" id="todayDate"></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat-item"><div class="stat-num" id="statMonitored">5</div><div class="stat-label">Monitored</div></div>
+      <div class="stat-item"><div class="stat-num" id="statReplied">—</div><div class="stat-label">Replied</div></div>
+      <div class="stat-item"><div class="stat-num" id="statApproved">—</div><div class="stat-label">Approval Rate</div></div>
+      <div class="stat-item"><div class="stat-num" id="statEngagement">—</div><div class="stat-label">Pending</div></div>
+    </div>
+
+    <div class="search-bar">
+      <span class="search-icon">&#9906;</span>
+      <input class="search-input" type="text" placeholder="Search replies..." oninput="filterCards(this.value)">
+    </div>
+
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All<span class="filter-count" id="countAll"></span></button>
+      <button class="filter-btn" data-filter="pending" onclick="setFilter('pending')">Pending<span class="filter-count" id="countPending"></span></button>
+      <button class="filter-btn" data-filter="approved" onclick="setFilter('approved')">Approved<span class="filter-count" id="countApproved"></span></button>
+      <button class="filter-btn" data-filter="dismissed" onclick="setFilter('dismissed')">Dismissed<span class="filter-count" id="countDismissed"></span></button>
+    </div>
+
+    <div id="cardList"></div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <h3>Queue cleared</h3>
+      <p>No replies match your current filter. Check back soon.</p>
+    </div>
+  </div>
+
+  <!-- WATCHLIST -->
+  <div class="page" id="page-watchlist">
+    <div class="page-header">
+      <div class="page-greeting">Watchlist</div>
+      <div class="page-date">Accounts you're monitoring for reply opportunities</div>
+    </div>
+
+    <div class="add-form">
+      <input class="add-input" id="addInput" type="text" placeholder="Add account handle (e.g. @elonmusk)" onkeydown="if(event.key==='Enter')addAccount()">
+      <button class="btn-add" onclick="addAccount()">Add Account</button>
+    </div>
+
+    <div class="wl-grid" id="wlGrid"></div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div class="page" id="page-analytics">
+    <div class="page-header">
+      <div class="page-greeting">Analytics</div>
+      <div class="page-date">Last 30 days — real data</div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="stats" style="border-bottom:none;padding-bottom:0;margin-bottom:16px">
+      <div class="stat-item"><div class="metric-big" id="anTotal">—</div><div class="metric-change">Generated</div></div>
+      <div class="stat-item"><div class="metric-big" id="anApproved">—</div><div class="metric-change">Posted to X</div></div>
+      <div class="stat-item"><div class="metric-big" id="anDismissed">—</div><div class="metric-change">Dismissed</div></div>
+      <div class="stat-item"><div class="metric-big" id="anRate">—</div><div class="metric-change">Approval rate</div></div>
+    </div>
+
+    <!-- Today's funnel — Concept C chips -->
+    <div class="analytics-card" style="margin-bottom:16px">
+      <h4 style="margin-bottom:12px">Today's pipeline</h4>
+      <div id="funnelChips" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap"></div>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="analytics-card">
+        <h4>Tweets Fetched from GetXAPI Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartFetched" role="img" aria-label="Tweets fetched per day bar chart"></canvas></div>
+      </div>
+      <div class="analytics-card">
+        <h4>Replies Posted to Twitter Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartPosted" role="img" aria-label="Replies posted to Twitter per day bar chart"></canvas></div>
+      </div>
+      <div class="analytics-card">
+        <h4>Replies Sent by Account</h4>
+        <div id="repliesByAccount" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="analytics-grid" style="margin-top:16px">
+      <div class="analytics-card">
+        <h4>Replies Generated Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartReplies" role="img" aria-label="Replies generated per day bar chart"></canvas></div>
+      </div>
+      <div class="analytics-card">
+        <h4>Approval Rate Over Time</h4>
+        <div class="chart-wrap"><canvas id="chartApproval" role="img" aria-label="Approval rate over time line chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="analytics-grid" style="margin-top:16px">
+      <div class="analytics-card">
+        <h4>Top Accounts by Drafts Generated</h4>
+        <div id="accountGenerated" style="margin-top:12px"></div>
+      </div>
+      <div class="analytics-card">
+        <h4>Approval Rate by Account</h4>
+        <div id="accountApproval" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- Sparkline per-account pipeline -->
+    <div class="analytics-card" style="margin-top:16px;padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:0.5px solid var(--border)">
+        <h4>Pipeline by Account</h4>
+        <div style="display:flex;gap:16px;margin-top:6px;font-size:10px;color:var(--ink-faint)">
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#c0392b;margin-right:4px"></span>Filtered</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#BA7517;margin-right:4px"></span>Pending</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3B6D11;margin-right:4px"></span>Replied</span>
+          <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#888780;margin-right:4px"></span>Dismissed</span>
+        </div>
+      </div>
+      <div id="sparklineRows"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="page-header">
+      <div class="page-greeting">Settings</div>
+      <div class="page-date">Configure your Draftillery preferences</div>
+    </div>
+
+    
+        <select class="settings-select" id="maxRepliesSelect">
+          <option value="3">3 per hour</option>
+          <option value="5" selected>5 per hour</option>
+          <option value="10">10 per hour</option>
+          <option value="15">15 per hour</option>
+          <option value="20">20 per hour</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-label">Reply Length</div><div class="settings-desc">How long Claude should make each reply</div></div>
+        <select class="settings-select" id="sentenceSelect">
+          <option>1 sentence</option>
+          <option>2 sentences</option>
+          <option selected>3 sentences</option>
+          <option>4 sentences</option>
+          <option>5 sentences</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-label">Include Questions</div><div class="settings-desc">End replies with a question to boost engagement</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Notifications</div>
+      <div class="settings-row">
+        <div><div class="settings-label">New Reply Suggestions</div><div class="settings-desc">Get notified when new replies are generated</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-label">Daily Digest</div><div class="settings-desc">Summary of yesterday's reply performance</div></div>
+        <div class="toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="settings-row">
+        <div><div class="settings-label">Engagement Alerts</div><div class="settings-desc">When an approved reply gets significant engagement</div></div>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Keyboard Shortcuts</div>
+      <div style="font-size:12.5px;color:var(--ink-light);line-height:2">
+        <span class="kbd">A</span> Approve top reply &nbsp;&nbsp;
+        <span class="kbd">D</span> Dismiss top reply &nbsp;&nbsp;
+        <span class="kbd">E</span> Edit reply text &nbsp;&nbsp;
+        <span class="kbd">J</span> Next card &nbsp;&nbsp;
+        <span class="kbd">K</span> Previous card
+      </div>
+    </div>
+
+    <div class="settings-section" style="border-bottom:none">
+      <div style="display:flex;gap:10px">
+        <button class="btn-add" onclick="saveSettings()">Save Settings</button>
+        <button class="btn-dismiss" style="padding:10px 20px;border-radius:3px;border:1px solid var(--border)" onclick="triggerPoll()">Check for New Tweets Now</button>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+
+async function logout() {
+  try { await fetch("/api/auth/logout", { method:"POST", headers:{"Authorization":"Bearer "+localStorage.getItem("amp_token")} }); } catch(e) {}
+  localStorage.removeItem("amp_token");
+  window.location.replace("/login");
+}
+
+// ─── Load user info into sidebar ──────────────────────────────
+function loadUser() {
+  try {
+    var token = localStorage.getItem("amp_token");
+    var payload = JSON.parse(atob(token.split(".")[1]));
+    var email = payload.email || "";
+    var name  = (payload.user_metadata && payload.user_metadata.full_name) ? payload.user_metadata.full_name : email.split("@")[0];
+    document.getElementById("sideName").textContent     = name;
+    document.getElementById("sideEmail").textContent    = email;
+    document.getElementById("sideInitials").textContent = name.slice(0,2).toUpperCase();
+  } catch(e) {}
+}
+
+
+(function(){
+  if (!localStorage.getItem("amp_token")) { window.location.replace("/login"); return; }
+  loadUser();
+  var now = new Date(), h = now.getHours();
+  var greet = h<12?"Good morning":h<17?"Good afternoon":"Good evening";
+  document.getElementById("greeting").innerHTML = greet+". <span id='pendingCount'>…</span> replies waiting.";
+  var m=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var d=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  document.getElementById("todayDate").textContent = d[now.getDay()]+", "+m[now.getMonth()]+" "+now.getDate()+", "+now.getFullYear();
+  loadData();
+  setInterval(async function() {
+    if (isUserEditing()) return; // don't refresh while user is editing
+    var results = await Promise.all([api("/accounts"), api("/replies")]).catch(function(){ return null; });
+    if (!results) return;
+    accounts = results[0];
+    replies  = results[1];
+    renderSideAccounts(); safeRenderCards(); updateCounts(); renderWatchlist();
+  }, 60000);
+})();
+
+// ─── Engagement Score Badge ───────────────────────────────────
+// Score = (views ÷ seconds_since_posted) + (likes × 5)
+function calcScore(createdIso, likes, views) {
+  var seconds = Math.max(1, Math.floor((Date.now() - new Date(createdIso)) / 1000));
+  var velocity = views / seconds;
+  return velocity + (likes * 5);
+}
+function formatScore(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1).replace(/\.0$/,"") + "M";
+  if (n >= 1000)    return (n/1000).toFixed(1).replace(/\.0$/,"") + "K";
+  if (n >= 10)      return Math.round(n).toString();
+  return n.toFixed(2);
+}
+function updateScoreBadges() {
+  document.querySelectorAll(".score-badge[data-created]").forEach(function(el) {
+    var created = el.getAttribute("data-created");
+    var likes   = parseInt(el.getAttribute("data-likes") || "0", 10);
+    var views   = parseInt(el.getAttribute("data-views") || "0", 10);
+    if (!created) return;
+    var score = calcScore(created, likes, views);
+    el.style.display = "block";
+    el.textContent   = formatScore(score);
+  });
+}
+setInterval(updateScoreBadges, 1000);
+
+// ─── State ────────────────────────────────────────────────────
+var accounts = [], replies = [], currentFilter = "all", searchQuery = "";
+
+// ─── API ──────────────────────────────────────────────────────
+async function api(path, opts) {
+  var token = localStorage.getItem("amp_token");
+  var headers = {"Content-Type":"application/json"};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  var res = await fetch("/api" + path, Object.assign({ headers: headers }, opts));
+  if (res.status === 401) { localStorage.removeItem("amp_token"); window.location.replace("/login"); return; }
+  var json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Request failed");
+  return json;
+}
+
+// ─── Time ─────────────────────────────────────────────────────
+function ago(iso) {
+  var s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s/60) + "m ago";
+  if (s < 86400) return Math.floor(s/3600) + "h ago";
+  return Math.floor(s/86400) + "d ago";
+}
+
+// ─── Render ───────────────────────────────────────────────────
+function renderSideAccounts() {
+  document.getElementById("sideAccounts").innerHTML = accounts.map(function(a) {
+    return '<div class="side-account"><div class="side-dot" style="background:'+a.color+'"></div>'+a.name+'</div>';
+  }).join("");
+}
+
+function isUserEditing() {
+  return !!document.querySelector(".reply-text[contenteditable='true']:focus");
+}
+
+function safeRenderCards() {
+  if (isUserEditing()) return;
+  renderCards();
+}
+
+function renderCards() {
+  var list = document.getElementById("cardList");
+  var filtered = replies.filter(function(r) {
+    if (currentFilter !== "all" && r.status !== currentFilter) return false;
+    if (searchQuery) {
+      var q = searchQuery.toLowerCase();
+      return (r.account_name+" @"+r.account_handle+" "+r.tweet_text+" "+r.reply_text).toLowerCase().indexOf(q) !== -1;
+    }
+    return true;
+  });
+  if (!filtered.length) {
+    list.innerHTML = "";
+    document.getElementById("emptyState").style.display = "block";
+    return;
+  }
+  document.getElementById("emptyState").style.display = "none";
+  list.innerHTML = filtered.map(function(r) {
+    var p = r.status === "pending";
+    return '<div class="card" data-id="'+r.id+'" data-status="'+r.status+'">' +
+      '<div class="card-status-bar" style="background:'+(r.status==="approved"?"var(--green)":r.status==="dismissed"?"var(--red)":"transparent")+'"></div>' +
+      '<div class="card-time">'+(r.tweet_created_at ? ago(r.tweet_created_at) : r.created_at ? ago(r.created_at) : "")+'<span class="score-badge" id="score-'+r.id+'" data-created="'+(r.tweet_created_at||r.created_at||'')+'" data-likes="'+(r.like_count||0)+'" data-views="'+(r.view_count||0)+'" style="'+(p ? '' : 'display:none')+'"></span></div>' +
+      '<div class="tweet-head"><a href="https://x.com/'+r.account_handle+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:11px;text-decoration:none"><div class="avatar" style="background:'+r.color+'">'+r.initials+'</div>' +
+      '<div><div class="tweet-name">'+r.account_name+'</div><div class="tweet-handle">@'+r.account_handle+'</div></div></a></div>' +
+      '<div class="tweet-text" onclick="window.open('https://x.com/'+r.account_handle+'/status/'+r.tweet_id+'','_blank')" title="Open tweet on Twitter">\u201C'+r.tweet_text+'\u201D</div>' +
+      (r.tweet_image_url ? '<div style="margin:-4px 0 16px"><img src="'+r.tweet_image_url+'" alt="Tweet image" style="width:100%;max-height:280px;object-fit:cover;border-radius:8px;display:block" onerror="this.style.display=\'none\'"></div>' : '') +
+      '<div class="reply-section"><div class="reply-label">Suggested Reply</div>' +
+      '<div class="reply-text" contenteditable="'+(p?'true':'false')+'" data-id="'+r.id+'" title="'+(p?'Click to edit reply':'')+'" style="'+(p?'cursor:text;border-color:var(--border-secondary)':'')+'">'+r.reply_text+'</div>' +
+      '<div class="card-actions">' +
+        (p ? '<button class="btn-dismiss" onclick="dismissReply('+r.id+')">Dismiss</button>' +
+             '<button class="btn-edit" onclick="focusReply('+r.id+')">Edit <span class="kbd">E</span></button>' +
+             '<button class="btn-edit" style="margin-left:8px" onclick="regenReply('+r.id+')">\u21BA Regen</button>'
+           : '<span style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:'+(r.status==="approved"?"var(--green)":"var(--red)")+';font-weight:600">'+r.status+'</span>'
+        ) +
+      '</div></div></div>';
+  }).join("");
+  setTimeout(updateScoreBadges, 0);
+}
+
+function updateCounts() {
+  var p = replies.filter(function(r){return r.status==="pending"}).length;
+  var a = replies.filter(function(r){return r.status==="approved"}).length;
+  var d = replies.filter(function(r){return r.status==="dismissed"}).length;
+  var q = replies.filter(function(r){return r.status==="queued"}).length;
+  document.getElementById("countAll").textContent       = " ("+replies.length+")";
+  document.getElementById("countPending").textContent   = " ("+p+")";
+  document.getElementById("countApproved").textContent  = " ("+a+")";
+  document.getElementById("countDismissed").textContent = " ("+d+")";
+  document.getElementById("pendingCount").textContent   = p;
+  document.getElementById("pendingBadge").textContent   = p;
+  document.getElementById("statMonitored").textContent  = accounts.length;
+  document.getElementById("statReplied").textContent    = a;
+  document.getElementById("statEngagement").textContent = q > 0 ? q : p;
+  var engLabel = document.querySelector("#statEngagement + .stat-label");
+  if (engLabel) engLabel.textContent = q > 0 ? "In queue" : "Pending";
+  var t = a + d;
+  document.getElementById("statApproved").textContent = t > 0 ? Math.round(a/t*100)+"%" : "—";
+}
+
+function renderWatchlist() {
+  document.getElementById("wlGrid").innerHTML = accounts.map(function(a) {
+    return '<div class="wl-card">' +
+      '<div class="avatar" style="background:'+a.color+';width:36px;height:36px;font-size:11px">'+a.initials+'</div>' +
+      '<div class="wl-info"><div class="wl-name">'+a.name+'</div><div class="wl-handle">@'+a.handle+'</div></div>' +
+      '<button class="wl-btn danger" onclick="removeAccount('+a.id+')" title="Remove">\u00D7</button></div>';
+  }).join("");
+}
+
+function loadSettings() {
+  api("/settings").then(function(s) {
+    var ta = document.querySelector(".settings-textarea");
+    var sel = document.getElementById("sentenceSelect");
+    var maxR = document.getElementById("maxRepliesSelect");
+    if (ta)   ta.value = s.brand_voice || "";
+    if (sel)  sel.value = s.max_length || "3 sentences";
+    if (maxR) maxR.value = String(s.max_replies_per_hour || 5);
+    var toggles = document.querySelectorAll(".toggle");
+    if (toggles[0]) toggles[0].classList.toggle("on", !!s.include_question);
+  }).catch(function(){});
+}
+
+
+
+// ─── Actions ──────────────────────────────────────────────────
+
+
+async function dismissReply(id) {
+  var card = document.querySelector('.card[data-id="'+id+'"]');
+  card && card.classList.add("dismissed");
+  try {
+    await api("/replies/"+id+"/dismiss", { method:"PATCH" });
+    var r = replies.find(function(x){return x.id===id});
+    if (r) r.status = "dismissed";
+    showToast("Dismissed");
+  } catch(e) {
+    card && card.classList.remove("dismissed");
+    showToast("Failed: " + e.message);
+  }
+  setTimeout(function(){ renderCards(); updateCounts(); }, 400);
+}
+
+async function regenReply(id) {
+  var card = document.querySelector('.card[data-id="'+id+'"]');
+  var el = card ? card.querySelector(".reply-text") : null;
+  if (el) el.style.opacity = "0.4";
+  try {
+    var data = await api("/replies/"+id+"/regenerate", { method:"PATCH" });
+    var r = replies.find(function(x){return x.id===id});
+    if (r) r.reply_text = data.reply.reply_text;
+    if (el) { el.textContent = data.reply.reply_text; el.style.opacity = "1"; }
+    showToast("New draft ready", "success");
+  } catch(e) {
+    if (el) el.style.opacity = "1";
+    showToast("Failed: " + e.message);
+  }
+}
+
+function focusReply(id) {
+  var el = document.querySelector('.reply-text[data-id="'+id+'"]');
+  if (!el) return;
+  el.focus();
+  var range = document.createRange(); range.selectNodeContents(el);
+  var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll(".filter-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.filter===f); });
+  renderCards();
+}
+
+function filterCards(q) { searchQuery = q; renderCards(); }
+
+async function addAccount() {
+  var input = document.getElementById("addInput");
+  var val = input.value.trim().replace(/^@/, "");
+  if (!val) return;
+  try {
+    var data = await api("/accounts", { method:"POST", body: JSON.stringify({ handle: val }) });
+    accounts.push(data.account);
+    input.value = "";
+    renderWatchlist(); renderSideAccounts(); updateCounts();
+    showToast("@"+val+" added", "success");
+  } catch(e) { showToast(e.message); }
+}
+
+async function removeAccount(id) {
+  var acc = accounts.find(function(a){return a.id===id});
+  try {
+    await api("/accounts/"+id, { method:"DELETE" });
+    accounts = accounts.filter(function(a){return a.id!==id});
+    renderWatchlist(); renderSideAccounts(); updateCounts();
+    showToast("@"+(acc ? acc.handle : id)+" removed");
+  } catch(e) { showToast(e.message); }
+}
+
+async function saveSettings() {
+  var ta   = document.querySelector(".settings-textarea");
+  var sel  = document.getElementById("sentenceSelect");
+  var maxR = document.getElementById("maxRepliesSelect");
+  var tog  = document.querySelectorAll(".toggle")[0];
+  try {
+    await api("/settings", { method:"PUT", body: JSON.stringify({
+      brand_voice:           ta   ? ta.value : undefined,
+      max_length:            sel  ? sel.value : "3 sentences",
+      max_replies_per_hour:  maxR ? parseInt(maxR.value, 10) : 5,
+      include_question:      tog  ? tog.classList.contains("on") : true,
+    })});
+    showToast("Settings saved", "success");
+  } catch(e) { showToast("Failed: " + e.message); }
+}
+
+async function triggerPoll() {
+  showToast("Checking for new tweets…");
+  try {
+    await api("/poll", { method:"POST" });
+    // Poll takes time — refresh every 3s for 30s to catch new replies as they come in
+    var refreshCount = 0;
+    var refreshInterval = setInterval(function() {
+      if (!isUserEditing()) loadData();
+      refreshCount++;
+      if (refreshCount >= 10) {
+        clearInterval(refreshInterval);
+        showToast("Done checking.", "success");
+      }
+    }, 3000);
+  } catch(e) { showToast(e.message); }
+}
+
+// ─── Navigation ───────────────────────────────────────────────
+function navigate(page) {
+  document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});
+  document.querySelectorAll(".nav-item").forEach(function(n){n.classList.remove("active")});
+  document.getElementById("page-"+page).classList.add("active");
+  document.querySelector('.nav-item[data-page="'+page+'"]').classList.add("active");
+  document.querySelector(".main").scrollTop = 0;
+  if (page==="analytics") { chartsInit = false; initCharts(); }
+  if (page==="settings") loadSettings();
+  if (page==="queue") loadQueue();
+}
+
+function showToast(msg, type) {
+  var t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast" + (type==="success" ? " success" : "");
+  setTimeout(function(){t.classList.add("visible")}, 10);
+  setTimeout(function(){t.classList.remove("visible")}, 2800);
+}
+
+// ─── Keyboard shortcuts ───────────────────────────────────────
+document.addEventListener("keydown", function(e) {
+  if (e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.contentEditable==="true") return;
+  var p = replies.filter(function(r){return r.status==="pending"});
+  if (!p.length) return;
+  if (e.key==="d"||e.key==="D"){e.preventDefault();dismissReply(p[0].id)}
+  if (e.key==="e"||e.key==="E"){e.preventDefault();focusReply(p[0].id)}
+});
+
+// ─── Charts ───────────────────────────────────────────────────
+var chartsInit = false;
+var chartRepliesInst  = null;
+var chartApprovalInst = null;
+var chartFetchedInst  = null;
+
+async function initCharts() {
+  chartsInit = true;
+  var data = await api("/analytics");
+  var daily      = data.daily      || [];
+  var accounts   = data.accounts   || [];
+  var summary    = data.summary    || {};
+  var fetchStats = data.fetchStats || [];
+  var funnel     = data.funnel     || {};
+
+  // ── Summary cards ──────────────────────────────────────────
+  document.getElementById("anTotal").textContent     = summary.total     || 0;
+  document.getElementById("anApproved").textContent  = summary.approved  || 0;
+  document.getElementById("anDismissed").textContent = summary.dismissed || 0;
+  document.getElementById("anRate").textContent      = (summary.approvalRate || 0) + "%";
+
+  // ── Funnel chips ───────────────────────────────────────────
+  var chips = [
+    { val: funnel.fetched   || 0, lbl: "Fetched",   bg: "var(--cream)",  color: "var(--ink-light)" },
+    { val: funnel.filtered  || 0, lbl: "Filtered",  bg: "#fbeaea",       color: "#c0392b"          },
+    { val: funnel.selected  || 0, lbl: "Selected",  bg: "#faeeda",       color: "#854F0B"          },
+    { val: funnel.replied   || 0, lbl: "Replied",   bg: "#eaf3de",       color: "#3B6D11"          },
+    { val: funnel.dismissed || 0, lbl: "Dismissed", bg: "var(--cream)",  color: "var(--ink-faint)" },
+  ];
+  var funnelEl = document.getElementById("funnelChips");
+  if (funnelEl) {
+    funnelEl.innerHTML = chips.map(function(c, i) {
+      return (i > 0 ? '<span style="color:var(--ink-faint);font-size:14px;padding-bottom:4px">›</span>' : '') +
+        '<div style="display:flex;flex-direction:column;align-items:center;padding:8px 14px;border-radius:8px;background:'+c.bg+';min-width:76px">' +
+          '<span style="font-size:20px;font-weight:600;color:'+c.color+';line-height:1">'+c.val+'</span>' +
+          '<span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:'+c.color+';margin-top:3px;opacity:0.8">'+c.lbl+'</span>' +
+        '</div>';
+    }).join("");
+  }
+
+  var tick = { font:{ family:"-apple-system,sans-serif", size:10 }, color:"#bbb" };
+
+  // ── Chart: Fetched per day ─────────────────────────────────
+  var fetchLabels  = fetchStats.map(function(d){ return d.date.slice(5); });
+  var fetchedVals  = fetchStats.map(function(d){ return d.fetched; });
+  var filteredVals = fetchStats.map(function(d){ return d.filtered; });
+  var selectedVals = fetchStats.map(function(d){ return d.selected; });
+  if (chartFetchedInst) chartFetchedInst.destroy();
+  chartFetchedInst = new Chart(document.getElementById("chartFetched"), {
+    type: "bar",
+    data: {
+      labels: fetchLabels,
+      datasets: [{ label:"New tweets", data: fetchedVals, backgroundColor:"rgba(74,111,165,0.7)", borderRadius:3 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Chart: Replies posted to Twitter per day ───────────────
+  var postedByDay  = data.postedByDay || [];
+  var postedLabels = postedByDay.map(function(d){ return d.date.slice(5); });
+  var postedVals   = postedByDay.map(function(d){ return d.count; });
+  if (window.chartPostedInst) window.chartPostedInst.destroy();
+  window.chartPostedInst = new Chart(document.getElementById("chartPosted"), {
+    type: "bar",
+    data: {
+      labels: postedLabels,
+      datasets:[{
+        label:"Replies posted to X",
+        data: postedVals,
+        backgroundColor:"rgba(59,109,17,0.75)",
+        borderRadius:3,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:{ ...tick, stepSize:1 }, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Daily reply chart vars ─────────────────────────────────
+  var labels    = daily.map(function(d){ return d.date.slice(5); });
+  var generated = daily.map(function(d){ return d.generated; });
+  var approved  = daily.map(function(d){ return d.approved; });
+  var dismissed = daily.map(function(d){ return d.dismissed; });
+  var rates     = daily.map(function(d){
+    var acted = d.approved + d.dismissed;
+    return acted > 0 ? Math.round(d.approved / acted * 100) : null;
+  });
+
+  if (chartRepliesInst) chartRepliesInst.destroy();
+  chartRepliesInst = new Chart(document.getElementById("chartReplies"), {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [
+        { label:"Approved",  data: approved,  backgroundColor:"rgba(74,143,100,0.75)", borderRadius:3 },
+        { label:"Dismissed", data: dismissed, backgroundColor:"rgba(200,80,80,0.5)",   borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:"bottom", labels:{ font:{ size:10 }, boxWidth:10 } } },
+      scales:{
+        x:{ stacked:true, grid:{ display:false }, ticks:tick },
+        y:{ stacked:true, grid:{ color:"#f0ede6" }, ticks:tick, beginAtZero:true }
+      }
+    }
+  });
+
+  // ── Chart 2: Approval rate over time ──────────────────────
+  if (chartApprovalInst) chartApprovalInst.destroy();
+  chartApprovalInst = new Chart(document.getElementById("chartApproval"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets:[{
+        label:"Approval %", data: rates,
+        borderColor:"#5a9a5a", backgroundColor:"rgba(90,154,90,0.08)",
+        fill:true, tension:0.3, pointRadius:4, pointBackgroundColor:"#5a9a5a",
+        spanGaps:true
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:false }, ticks:tick },
+        y:{ grid:{ color:"#f0ede6" }, ticks:{ ...tick, callback: function(v){ return v+"%"; } }, min:0, max:100 }
+      }
+    }
+  });
+
+  // ── Replies sent by account ────────────────────────────────
+  var repliesByAccount = {};
+  (data.postedByDay ? [] : []).forEach(function(){});
+  // Build from accounts data — approved count per handle
+  accounts.slice().sort(function(a,b){ return b.approved - a.approved; }).forEach(function(a){
+    repliesByAccount[a.handle] = a.approved || 0;
+  });
+  var rbaEl = document.getElementById("repliesByAccount");
+  if (rbaEl) {
+    var sorted = accounts.slice()
+      .filter(function(a){ return a.approved > 0; })
+      .sort(function(a,b){ return b.approved - a.approved; });
+    var maxReplies = sorted.length ? sorted[0].approved : 1;
+    var totalReplies = summary.approved || 0;
+    rbaEl.innerHTML = sorted.length ? 
+      '<div style="font-size:11px;color:var(--ink-faint);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">' +
+        'Total: <span style="font-weight:600;color:#3B6D11;font-size:13px">'+totalReplies+'</span> replies sent' +
+      '</div>' +
+      sorted.map(function(a){
+        var pct = Math.round(a.approved / maxReplies * 100);
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+          '<div style="font-size:11px;color:var(--ink);width:110px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@'+a.handle+'</div>' +
+          '<div style="flex:1;background:#f0ede6;border-radius:3px;height:6px">' +
+            '<div style="background:#3B6D11;border-radius:3px;height:6px;width:'+pct+'%"></div>' +
+          '</div>' +
+          '<div style="font-size:11px;font-weight:500;color:#3B6D11;width:20px;text-align:right;flex-shrink:0">'+a.approved+'</div>' +
+        '</div>';
+      }).join("") : '<div style="font-size:12px;color:var(--ink-faint)">No replies sent yet</div>';
+  }
+  var genEl = document.getElementById("accountGenerated");
+  var maxGen = Math.max.apply(null, accounts.map(function(a){ return a.generated; })) || 1;
+  genEl.innerHTML = accounts.map(function(a){
+    var pct = Math.round(a.generated / maxGen * 100);
+    var archivedTag = a.archived ? '<span style="font-size:9px;background:#f0ede6;color:#888;padding:1px 6px;border-radius:10px;margin-left:5px;font-weight:500">archived</span>' : '';
+    return '<div style="margin-bottom:10px;opacity:'+(a.archived?'0.5':'1')+'">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;align-items:center">' +
+        '<span style="color:var(--ink)">@'+a.handle+archivedTag+'</span>' +
+        '<span style="color:var(--ink-light);font-weight:600">'+a.generated+'</span>' +
+      '</div>' +
+      '<div style="background:#f0ede6;border-radius:3px;height:6px">' +
+        '<div style="background:'+(a.archived?'#bbb':'#4a6fa5')+';border-radius:3px;height:6px;width:'+pct+'%"></div>' +
+      '</div></div>';
+  }).join("") || '<div style="font-size:12px;color:var(--ink-faint)">No data yet</div>';
+
+  // ── Account bars: approval rate ────────────────────────────
+  var aprEl = document.getElementById("accountApproval");
+  var sorted = accounts.slice().sort(function(a,b){
+    var ra = a.approved+a.dismissed > 0 ? a.approved/(a.approved+a.dismissed) : 0;
+    var rb = b.approved+b.dismissed > 0 ? b.approved/(b.approved+b.dismissed) : 0;
+    return rb - ra;
+  });
+  aprEl.innerHTML = sorted.map(function(a){
+    var acted = a.approved + a.dismissed;
+    var rate = acted > 0 ? Math.round(a.approved / acted * 100) : 0;
+    var color = a.archived ? "#bbb" : rate >= 70 ? "#5a9a5a" : rate >= 40 ? "#d4943e" : "#c04040";
+    var archivedTag = a.archived ? '<span style="font-size:9px;background:#f0ede6;color:#888;padding:1px 6px;border-radius:10px;margin-left:5px;font-weight:500">archived</span>' : '';
+    return '<div style="margin-bottom:10px;opacity:'+(a.archived?'0.5':'1')+'">' +
+      '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;align-items:center">' +
+        '<span style="color:var(--ink)">@'+a.handle+archivedTag+'</span>' +
+        '<span style="color:'+color+';font-weight:600">'+rate+'%</span>' +
+      '</div>' +
+      '<div style="background:#f0ede6;border-radius:3px;height:6px">' +
+        '<div style="background:'+color+';border-radius:3px;height:6px;width:'+rate+'%"></div>' +
+      '</div></div>';
+  }).join("") || '<div style="font-size:12px;color:var(--ink-faint)">No data yet</div>';
+
+  // ── Sparkline rows per account ─────────────────────────────
+  var sparkEl = document.getElementById("sparklineRows");
+  if (sparkEl) {
+    sparkEl.innerHTML = accounts.map(function(a) {
+      var total = a.approved + a.dismissed + a.pending;
+      if (total === 0) return '';
+      // Use generated as the bar denominator so proportions are honest
+      var denom = Math.max(a.generated, 1);
+      var fPct  = Math.round((a.generated - total) / denom * 100); // implied filtered = generated - (approved+dismissed+pending)
+      var filtered = Math.max(0, a.generated - total);
+      var archivedTag = a.archived
+        ? '<span style="font-size:9px;background:#f0ede6;color:#aaa;padding:1px 5px;border-radius:8px;margin-left:4px">archived</span>' : '';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:0.5px solid var(--border);opacity:'+(a.archived?'0.45':'1')+'">' +
+        '<div style="display:flex;align-items:center;gap:7px;width:140px;flex-shrink:0">' +
+          '<div style="width:26px;height:26px;border-radius:50%;background:'+a.color+';display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">'+a.initials+'</div>' +
+          '<div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+a.handle+archivedTag+'</div>' +
+        '</div>' +
+        '<div style="flex:1;display:flex;height:10px;border-radius:5px;overflow:hidden;gap:1px">' +
+          (filtered > 0 ? '<div style="flex:'+filtered+';background:#c0392b;opacity:0.75" title="Filtered: '+filtered+'"></div>' : '') +
+          (a.pending  > 0 ? '<div style="flex:'+a.pending+';background:#BA7517;opacity:0.8" title="Pending: '+a.pending+'"></div>' : '') +
+          (a.approved > 0 ? '<div style="flex:'+a.approved+';background:#3B6D11;opacity:0.8" title="Replied: '+a.approved+'"></div>' : '') +
+          (a.dismissed> 0 ? '<div style="flex:'+a.dismissed+';background:#888780;opacity:0.6" title="Dismissed: '+a.dismissed+'"></div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:14px;font-size:10px;color:var(--ink-faint);width:170px;justify-content:flex-end;flex-shrink:0">' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#c0392b">'+filtered+'</span>'+Math.round(filtered/denom*100)+'%</div>' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#3B6D11">'+a.approved+'</span>'+Math.round(a.approved/denom*100)+'%</div>' +
+          '<div style="text-align:right"><span style="display:block;font-size:12px;font-weight:500;color:#888780">'+a.dismissed+'</span>'+Math.round(a.dismissed/denom*100)+'%</div>' +
+        '</div>' +
+      '</div>';
+    }).join("") || '<div style="padding:16px;font-size:12px;color:var(--ink-faint)">No data yet</div>';
+  }
+}
+
+// ─── Load data from server ────────────────────────────────────
+async function loadData() {
+  try {
+    var results = await Promise.all([api("/accounts"), api("/replies")]);
+    accounts = results[0];
+    replies  = results[1];
+    renderSideAccounts(); renderCards(); updateCounts(); renderWatchlist();
+  } catch(e) {
+    showToast("Could not reach server");
+    console.error(e);
+  }
+}
+
+
+</script>
+</body>
+</html>

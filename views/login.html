@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Draftillery — Sign In</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #faf8f2; min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+}
+body::before { content:''; position:fixed; top:0; left:0; right:0; height:3px; background:#4a6fa5; }
+.card { background:#fff; border:1px solid #e4e0d6; padding:40px; width:100%; max-width:400px; }
+.logo { font-family:Georgia,serif; font-size:22px; color:#2c2c2c; margin-bottom:4px; }
+.sub  { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:#bbb; margin-bottom:32px; }
+.tabs { display:flex; border-bottom:1px solid #e4e0d6; margin-bottom:28px; }
+.tab  { flex:1; padding:10px; text-align:center; font-size:11px; text-transform:uppercase;
+        letter-spacing:1px; color:#999; cursor:pointer; border-bottom:2px solid transparent;
+        margin-bottom:-1px; }
+.tab.active { color:#4a6fa5; border-bottom-color:#4a6fa5; font-weight:700; }
+label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:1.5px;
+        color:#999; margin-bottom:6px; font-weight:600; }
+input { width:100%; padding:10px 14px; border:1px solid #e4e0d6; font-size:13px;
+        color:#2c2c2c; border-radius:3px; outline:none; margin-bottom:16px;
+        font-family:inherit; background:#fff; }
+input:focus { border-color:#4a6fa5; }
+.btn  { width:100%; padding:11px; background:#4a6fa5; color:#fff; border:none;
+        border-radius:3px; font-size:12px; font-weight:600; cursor:pointer;
+        font-family:inherit; margin-top:4px; }
+.btn:hover { background:#3d5f8f; }
+.btn:disabled { opacity:0.6; cursor:not-allowed; }
+.msg  { font-size:12px; margin-top:14px; padding:10px 12px; border-radius:3px; display:none; }
+.err  { color:#c04040; background:#fdf0f0; border:1px solid #f5c6c6; }
+.suc  { color:#3a6e3a; background:#f0faf0; border:1px solid #b8ddb8; }
+.panel { display:none; }
+.panel.on { display:block; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">Draft<span style="color:#c0392b">illery</span></div>
+  <div class="sub">Reply outreach dashboard</div>
+
+  <div class="tabs">
+    <div class="tab on active" id="tab-in"  onclick="show('in')">Sign In</div>
+    <div class="tab"           id="tab-up"  onclick="show('up')">Create Account</div>
+  </div>
+
+  <!-- SIGN IN -->
+  <div class="panel on" id="panel-in">
+    <label>Email</label>
+    <input type="email"    id="in-email" placeholder="you@example.com">
+    <label>Password</label>
+    <input type="password" id="in-pass"  placeholder="••••••••">
+    <button class="btn" id="in-btn" onclick="doLogin()">Sign In</button>
+    <div class="msg" id="in-msg"></div>
+  </div>
+
+  <!-- CREATE ACCOUNT -->
+  <div class="panel" id="panel-up">
+    <label>Full Name</label>
+    <input type="text"     id="up-name"  placeholder="Your name">
+    <label>Email</label>
+    <input type="email"    id="up-email" placeholder="you@example.com">
+    <label>Password</label>
+    <input type="password" id="up-pass"  placeholder="Min 6 characters">
+    <button class="btn" id="up-btn" onclick="doRegister()">Create Account</button>
+    <div class="msg" id="up-msg"></div>
+  </div>
+</div>
+
+<script>
+// Switch tabs
+function show(panel) {
+  document.getElementById("panel-in").className = "panel" + (panel==="in" ? " on" : "");
+  document.getElementById("panel-up").className = "panel" + (panel==="up" ? " on" : "");
+  document.getElementById("tab-in").className   = "tab"   + (panel==="in" ? " active" : "");
+  document.getElementById("tab-up").className   = "tab"   + (panel==="up" ? " active" : "");
+}
+
+// Show message
+function msg(id, text, type) {
+  var el = document.getElementById(id);
+  el.textContent = text;
+  el.className = "msg " + (type === "ok" ? "suc" : "err");
+  el.style.display = "block";
+}
+
+// Sign in
+async function doLogin() {
+  var email = document.getElementById("in-email").value.trim();
+  var pass  = document.getElementById("in-pass").value;
+  var btn   = document.getElementById("in-btn");
+  if (!email || !pass) { msg("in-msg", "Please fill in all fields.", "err"); return; }
+  btn.disabled = true; btn.textContent = "Signing in…";
+  try {
+    var res  = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: pass })
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      msg("in-msg", data.error || "Invalid email or password.", "err");
+      btn.disabled = false; btn.textContent = "Sign In";
+      return;
+    }
+    // Save token then go to dashboard
+    localStorage.setItem("amp_token", data.access_token);
+    window.location.href = "/";
+  } catch(e) {
+    msg("in-msg", "Server error — try again.", "err");
+    btn.disabled = false; btn.textContent = "Sign In";
+  }
+}
+
+// Register
+async function doRegister() {
+  var name  = document.getElementById("up-name").value.trim();
+  var email = document.getElementById("up-email").value.trim();
+  var pass  = document.getElementById("up-pass").value;
+  var btn   = document.getElementById("up-btn");
+  if (!name || !email || !pass) { msg("up-msg", "Please fill in all fields.", "err"); return; }
+  if (pass.length < 6) { msg("up-msg", "Password must be at least 6 characters.", "err"); return; }
+  btn.disabled = true; btn.textContent = "Creating account…";
+  try {
+    var res  = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, password: pass, name: name })
+    });
+    var data = await res.json();
+    if (!res.ok) {
+      msg("up-msg", data.error || "Registration failed.", "err");
+      btn.disabled = false; btn.textContent = "Create Account";
+      return;
+    }
+    msg("up-msg", "Account created! Taking you in…", "ok");
+    localStorage.setItem("amp_token", data.access_token);
+    setTimeout(function() { window.location.href = "/"; }, 800);
+  } catch(e) {
+    msg("up-msg", "Server error — try again.", "err");
+    btn.disabled = false; btn.textContent = "Create Account";
+  }
+}
+
+// Enter key on password fields
+document.getElementById("in-pass").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") doLogin();
+});
+document.getElementById("up-pass").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") doRegister();
+});
+</script>
+</body>
+</html>
