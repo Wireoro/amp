@@ -6,7 +6,7 @@ const cron        = require("node-cron");
 
 const supabase    = require("./supabase");
 const requireAuth = require("./auth");
-const { generateReply, fetchProfile } = require("./clients");
+const { postReply, generateReply, fetchProfile } = require("./clients");
 const { poll, COLORS } = require("./poller");
 
 const app = express();
@@ -229,9 +229,47 @@ app.patch("/api/replies/:id/approve", async (req, res) => {
     .update({ status:"queued", reply_text:replyText, scheduled_at: scheduledAt.toISOString(), actioned_at: now.toISOString() })
     .eq("id", id).select().single();
   if (upErr) return err(res, upErr.message);
-  ok(res, { reply: updated });
+  ok(res, { reply: updated, scheduledAt: scheduledAt.toISOString() });
 });
 
+// GET /api/queue/status — last posted reply time
+app.get("/api/queue/status", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data } = await supabase.from("replies")
+    .select("actioned_at, reply_text, account_handle")
+    .eq("user_id", req.user.id)
+    .eq("status", "approved")
+    .order("actioned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  ok(res, {
+    lastSentAt:     data?.actioned_at || null,
+    lastHandle:     data?.account_handle || null,
+  });
+});
+
+// GET /api/queue — all queued replies in order
+app.get("/api/queue", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const { data, error } = await supabase.from("replies")
+    .select("*")
+    .eq("user_id", req.user.id)
+    .eq("status", "queued")
+    .order("scheduled_at", { ascending: true });
+  if (error) return err(res, error.message);
+  res.json(data || []);
+});
+
+// DELETE /api/queue/:id — remove from queue (back to pending)
+app.delete("/api/queue/:id", async (req, res) => {
+  if (!req.user) return err(res, "Not authenticated", 401);
+  const id = parseInt(req.params.id, 10);
+  const { data: updated, error } = await supabase.from("replies")
+    .update({ status:"pending", scheduled_at: null, actioned_at: null })
+    .eq("id", id).eq("user_id", req.user.id).select().single();
+  if (error) return err(res, error.message);
+  ok(res, { reply: updated });
+});
 
 app.patch("/api/replies/:id/dismiss", async (req, res) => {
   if (!req.user) return err(res, "Not authenticated", 401);

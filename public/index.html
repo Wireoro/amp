@@ -222,7 +222,8 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
 .toggle.on::after { transform: translateX(18px); }
 .connected-account { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid var(--border); padding: 16px; border-radius: 3px; }
 .connected-status { font-size: 10px; color: var(--green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
-
+.btn-disconnect { font-size: 10px; color: var(--red); margin-left: auto; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.btn-disconnect:hover { text-decoration: underline; }
 
 /* ===== SEARCH ===== */
 .search-bar { position: relative; margin-bottom: 20px; }
@@ -273,6 +274,10 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
   <div class="nav-item" data-page="watchlist" onclick="navigate('watchlist')">
     <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3"/></svg>
     Watchlist
+  </div>
+  <div class="nav-item" data-page="queue" onclick="navigate('queue')">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="3" width="14" height="2" rx="1"/><rect x="1" y="7" width="10" height="2" rx="1"/><rect x="1" y="11" width="12" height="2" rx="1"/></svg>
+    Queue <span id="queueBadge" style="background:#4a6fa5;color:#fff;font-size:9px;padding:1px 6px;border-radius:10px;margin-left:4px;display:none">0</span>
   </div>
   <div class="nav-item" data-page="analytics" onclick="navigate('analytics')">
     <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="10" width="3" height="5" rx="0.5"/><rect x="6" y="6" width="3" height="9" rx="0.5"/><rect x="11" y="2" width="3" height="13" rx="0.5"/></svg>
@@ -350,6 +355,28 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     <div class="wl-grid" id="wlGrid"></div>
   </div>
 
+  <!-- QUEUE -->
+  <div class="page" id="page-queue">
+    <div class="page-header">
+      <div class="page-greeting">Queue</div>
+      <div class="page-date">Replies scheduled to post automatically</div>
+    </div>
+
+    <!-- Last sent status bar -->
+    <div id="queueStatusBar" style="display:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:12px;color:var(--ink-light)">
+        Last reply sent to <strong id="queueLastHandle">—</strong>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:#c0392b" id="queueLastAgo">—</div>
+    </div>
+
+    <div id="queueList"></div>
+    <div id="queueEmpty" style="display:none" class="empty-state">
+      <h3>Queue is empty</h3>
+      <p>Approve replies from the Dashboard to schedule them.</p>
+    </div>
+  </div>
+
   <!-- ANALYTICS -->
   <div class="page" id="page-analytics">
     <div class="page-header">
@@ -377,8 +404,8 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
         <div class="chart-wrap"><canvas id="chartFetched" role="img" aria-label="Tweets fetched per day bar chart"></canvas></div>
       </div>
       <div class="analytics-card">
-        <h4>Replies Approved Per Day</h4>
-        <div class="chart-wrap"><canvas id="chartPosted" role="img" aria-label="Replies approved per day bar chart"></canvas></div>
+        <h4>Replies Posted to Twitter Per Day</h4>
+        <div class="chart-wrap"><canvas id="chartPosted" role="img" aria-label="Replies posted to Twitter per day bar chart"></canvas></div>
       </div>
       <div class="analytics-card">
         <h4>Replies Sent by Account</h4>
@@ -428,6 +455,41 @@ body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 
     <div class="page-header">
       <div class="page-greeting">Settings</div>
       <div class="page-date">Configure your Draftillery preferences</div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-title">Connected Twitter Account</div>
+      <p style="font-size:12px;color:var(--ink-muted);margin-bottom:14px">Connect your Twitter account so approved replies get posted automatically.</p>
+
+      <!-- CONNECTED STATE -->
+      <div id="twitterConnected" style="display:none">
+        <div class="connected-account">
+          <div class="side-avatar" id="twitterInitials">?</div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600" id="twitterHandle">@handle</div>
+            <div class="connected-status">Connected</div>
+          </div>
+          <button class="btn-disconnect" onclick="disconnectTwitter()">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- NOT CONNECTED STATE -->
+      <div id="twitterDisconnected">
+        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:12px">
+          To get your <strong>auth_token</strong>:<br><br>
+          1. Open <a href="https://x.com" target="_blank" style="color:var(--blue)">x.com</a> and log in<br>
+          2. Press <strong>F12</strong> → Application tab → Cookies → x.com<br>
+          3. Find <strong>auth_token</strong> and copy the value
+        </div>
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;font-weight:600;display:block;margin-bottom:6px">Your Twitter Handle</label>
+        <input type="text" id="twitterHandleInput" placeholder="yourhandle (no @)"
+          style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:3px;font-size:13px;margin-bottom:12px;font-family:inherit;outline:none">
+        <label style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#999;font-weight:600;display:block;margin-bottom:6px">auth_token</label>
+        <input type="password" id="twitterTokenInput" placeholder="Paste your auth_token here"
+          style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:3px;font-size:13px;margin-bottom:14px;font-family:inherit;outline:none">
+        <button class="btn-add" onclick="connectTwitter()">Connect Twitter Account</button>
+        <div id="twitterMsg" style="font-size:12px;margin-top:10px;display:none"></div>
+      </div>
     </div>
 
     <div class="settings-section">
@@ -657,7 +719,7 @@ function loadUser() {
     accounts = results[0];
     replies  = results[1];
     renderSideAccounts(); safeRenderCards(); updateCounts(); renderWatchlist();
-
+    loadQueue();
   }, 60000);
 })();
 
@@ -870,7 +932,7 @@ async function approveReply(id) {
     if (r) { r.status="queued"; if(text) r.reply_text=text; }
     var t = data && data.scheduledAt ? "Queued for " + formatScheduledTime(data.scheduledAt) : "Queued ✓";
     showToast(t, "success");
-
+    loadQueue();
   } catch(e) {
     card && card.classList.remove("approved");
     showToast("Failed: " + e.message);
@@ -1260,7 +1322,7 @@ async function loadData() {
     accounts = results[0];
     replies  = results[1];
     renderSideAccounts(); renderCards(); updateCounts(); renderWatchlist();
-
+    loadQueue();
   } catch(e) {
     showToast("Could not reach server");
     console.error(e);
