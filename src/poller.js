@@ -51,12 +51,9 @@ async function poll() {
     console.log(`[Poll] User ${userId.slice(0,8)}… → ${newTweets.length} new tweet(s)`);
 
     // ── Top 50% filter ────────────────────────────────────────
-    // Score = (views ÷ seconds_since_posted) + (likes × 5)
-    // Mark all as seen first, then only generate drafts for top half
+    // Score = views + (likes × 5)
     function tweetScore(tweet) {
-      const seconds = Math.max(1, (Date.now() - new Date(tweet.createdAt || Date.now())) / 1000);
-      const velocity = (tweet.viewCount || 0) / seconds;
-      return velocity + ((tweet.likeCount || 0) * 5);
+      return (tweet.viewCount || 0) + ((tweet.likeCount || 0) * 5);
     }
 
     // Separate first-seen tweets (need bookmark) from candidates
